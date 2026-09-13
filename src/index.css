@@ -1,3 +1,76 @@
+@custom-variant dark (&:where(.dark, .dark *));
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+:root {
+  --font-sans: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-serif: 'Playfair Display', 'Cormorant Garamond', Georgia, serif;
+
+  /* Warm Ivory Theme Tokens */
+  --bg-canvas: #fcfaf6;
+  --bg-surface: #ffffff;
+  --bg-surface-subtle: #f5f0e8;
+  --bg-header: rgba(252, 250, 246, 0.85);
+  --border-subtle: rgba(120, 53, 15, 0.1);
+  --border-active: rgba(217, 119, 6, 0.4);
+  --text-primary: #1c1917;
+  --text-secondary: #57534e;
+  --text-muted: #78716c;
+  --shadow-executive: 0 10px 25px -5px rgba(120, 53, 15, 0.05), 0 8px 10px -6px rgba(120, 53, 15, 0.05);
+  --shadow-elevated: 0 20px 25px -5px rgba(120, 53, 15, 0.07), 0 8px 10px -6px rgba(120, 53, 15, 0.05);
+}
+
+.dark {
+  /* Dark Luxury Theme Tokens */
+  --bg-canvas: #0b0f19;
+  --bg-surface: #1e293b;
+  --bg-surface-subtle: #0f172a;
+  --bg-header: rgba(11, 15, 25, 0.85);
+  --border-subtle: rgba(51, 65, 85, 0.6);
+  --border-active: rgba(245, 158, 11, 0.3);
+  --text-primary: #f8fafc;
+  --text-secondary: #94a3b8;
+  --text-muted: #64748b;
+  --shadow-executive: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+  --shadow-elevated: 0 25px 50px -12px rgba(0, 0, 0, 0.7);
+}
+
+/* Custom font utilities */
+.font-sans {
+  font-family: var(--font-sans);
+}
+
+.font-serif {
+  font-family: var(--font-serif);
+}
+
+/* Dual Theme Base Application */
+body {
+  font-family: var(--font-sans);
+  background-color: var(--bg-canvas);
+  color: var(--text-primary);
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+/* Dual Theme Semantic Tokens */
+.theme-canvas {
+  background-color: var(--bg-canvas);
+  color: var(--text-primary);
+}
+
+.theme-surface {
+  background-color: var(--bg-surface);
+  border-color: var(--border-subtle);
+  box-shadow: var(--shadow-executive);
+}
+
+.theme-surface-subtle {
+  background-color: var(--bg-surface-subtle);
+  border-color: var(--border-subtle);
+}
+
+.theme-border {
+  border-color: var(--border-subtle);
+}

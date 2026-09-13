@@ -5,6 +5,7 @@ import { ArrowLeft, ArrowRight } from 'lucide-react';
 import { useBrigadeStore } from '../store/useBrigadeStore';
 import type { Tarea } from '../store/useBrigadeStore';
 import { ShoppingModal } from './ShoppingModal';
+import { getStationConfig } from '../types/stations';
 
 export interface TaskCardProps {
   tarea: Tarea;
@@ -14,18 +15,41 @@ export interface TaskCardProps {
 
 const ESTADOS: Tarea['estado'][] = ['Pendiente', 'En Proceso', 'Completado'];
 
-const getPriorityBadgeStyle = (prioridad: Tarea['prioridad']) => {
+function PriorityBeaconBadge({ prioridad }: { prioridad: Tarea['prioridad'] }) {
   switch (prioridad) {
     case 'Critica':
-      return 'bg-red-600 text-white border-slate-900';
+      return (
+        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-black uppercase tracking-wider bg-red-500/15 text-red-600 dark:text-red-400 border border-red-500/30 shadow-sm shadow-red-500/20 shrink-0">
+          <span className="relative flex h-2 w-2">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75" />
+            <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500" />
+          </span>
+          <span>Crítica</span>
+        </span>
+      );
     case 'Media':
-      return 'bg-amber-400 text-slate-950 border-slate-900';
+      return (
+        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-black uppercase tracking-wider bg-amber-500/15 text-amber-700 dark:text-amber-400 border border-amber-500/30 shadow-sm shadow-amber-500/20 shrink-0">
+          <span className="h-2 w-2 rounded-full bg-amber-500" />
+          <span>Media</span>
+        </span>
+      );
     case 'Baja':
-      return 'bg-emerald-500 text-white border-slate-900';
+      return (
+        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-black uppercase tracking-wider bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border border-emerald-500/30 shadow-sm shadow-emerald-500/20 shrink-0">
+          <span className="h-2 w-2 rounded-full bg-emerald-500" />
+          <span>Baja</span>
+        </span>
+      );
     default:
-      return 'bg-slate-800 text-white border-slate-900';
+      return (
+        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-black uppercase tracking-wider bg-slate-500/15 text-slate-700 dark:text-slate-400 border border-slate-500/30 shrink-0">
+          <span className="h-2 w-2 rounded-full bg-slate-400" />
+          <span>{prioridad}</span>
+        </span>
+      );
   }
-};
+}
 
 function MobileSwipeCard({ tarea }: { tarea: Tarea }) {
   const moverTarea = useBrigadeStore(state => state.moverTarea);
@@ -42,6 +66,8 @@ function MobileSwipeCard({ tarea }: { tarea: Tarea }) {
   const backtrackOpacity = useTransform(x, [-65, -15], [1, 0]);
   const advanceScale = useTransform(x, [15, 65], [0.85, 1]);
   const backtrackScale = useTransform(x, [-65, -15], [1, 0.85]);
+  const advanceTranslateX = useTransform(x, [15, 65], [-8, 6]);
+  const backtrackTranslateX = useTransform(x, [-65, -15], [-6, 8]);
 
   const handleDragEnd = (
     _event: MouseEvent | TouchEvent | PointerEvent,
@@ -57,22 +83,27 @@ function MobileSwipeCard({ tarea }: { tarea: Tarea }) {
     }
   };
 
+  const stationConfig = getStationConfig(tarea.partida);
+  const StationIcon = stationConfig.icon;
+
   return (
-    <div className="relative overflow-hidden rounded-2xl border-2 border-slate-900 bg-slate-950 mb-3 select-none">
+    <div className="relative overflow-hidden rounded-2xl border border-stone-200/90 dark:border-slate-700/60 bg-stone-900 dark:bg-slate-950 mb-3 select-none shadow-md shadow-amber-900/5 dark:shadow-black/30">
       {/* Background Underlay 1: Advance (Right Swipe) - ONLY rendered if canAdvance */}
       {canAdvance && (
         <motion.div 
           style={{ opacity: advanceOpacity }}
-          className="absolute inset-0 flex items-center justify-start pl-5 bg-emerald-500 text-slate-950 font-black pointer-events-none z-0"
+          className="absolute inset-0 flex items-center justify-start pl-5 sm:pl-6 bg-gradient-to-r from-emerald-600 via-emerald-500 to-teal-500 text-white font-bold pointer-events-none z-0 shadow-inner"
         >
           <motion.div 
-            style={{ scale: advanceScale }}
-            className="flex items-center gap-2"
+            style={{ scale: advanceScale, x: advanceTranslateX }}
+            className="flex items-center gap-2.5"
           >
-            <ArrowRight className="w-6 h-6 stroke-[3]" />
+            <div className="w-9 h-9 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center border border-white/30 shadow-sm">
+              <ArrowRight className="w-5 h-5 stroke-[3] text-white" />
+            </div>
             <div className="flex flex-col text-left">
-              <span className="text-[0.65rem] uppercase font-black tracking-wider">Avanzar</span>
-              <span className="text-sm font-black">{nextState}</span>
+              <span className="text-[0.65rem] uppercase font-black tracking-widest text-emerald-100 drop-shadow-xs">Avanzar</span>
+              <span className="text-sm font-black uppercase tracking-tight text-white">{nextState}</span>
             </div>
           </motion.div>
         </motion.div>
@@ -82,17 +113,19 @@ function MobileSwipeCard({ tarea }: { tarea: Tarea }) {
       {canBacktrack && (
         <motion.div 
           style={{ opacity: backtrackOpacity }}
-          className="absolute inset-0 flex items-center justify-end pr-5 bg-blue-600 text-white font-black pointer-events-none z-0"
+          className="absolute inset-0 flex items-center justify-end pr-5 sm:pr-6 bg-gradient-to-l from-sky-600 via-blue-600 to-indigo-600 text-white font-bold pointer-events-none z-0 shadow-inner"
         >
           <motion.div 
-            style={{ scale: backtrackScale }}
-            className="flex items-center gap-2"
+            style={{ scale: backtrackScale, x: backtrackTranslateX }}
+            className="flex items-center gap-2.5"
           >
             <div className="flex flex-col text-right">
-              <span className="text-[0.65rem] uppercase font-black tracking-wider">Retroceder</span>
-              <span className="text-sm font-black">{prevState}</span>
+              <span className="text-[0.65rem] uppercase font-black tracking-widest text-sky-100 drop-shadow-xs">Retroceder</span>
+              <span className="text-sm font-black uppercase tracking-tight text-white">{prevState}</span>
             </div>
-            <ArrowLeft className="w-6 h-6 stroke-[3]" />
+            <div className="w-9 h-9 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center border border-white/30 shadow-sm">
+              <ArrowLeft className="w-5 h-5 stroke-[3] text-white" />
+            </div>
           </motion.div>
         </motion.div>
       )}
@@ -109,54 +142,55 @@ function MobileSwipeCard({ tarea }: { tarea: Tarea }) {
         dragElastic={0.18}
         dragSnapToOrigin
         onDragEnd={handleDragEnd}
-        className="relative z-10 bg-white p-4 sm:p-5 flex flex-col gap-3.5"
+        className="relative z-10 bg-white dark:bg-slate-800/95 p-4 sm:p-5 flex flex-col gap-3.5"
       >
         <div className="flex justify-between items-start gap-2">
           <div className="flex-1">
-            <span className="text-[0.65rem] uppercase font-black tracking-wider text-slate-500 block mb-1">
-              Partida: {tarea.partida}
-            </span>
-            <h4 className="font-black text-slate-950 text-xl leading-snug tracking-tight">
+            <div className="flex items-center gap-2 mb-1.5">
+              <span className={`inline-flex items-center gap-1 text-[0.65rem] uppercase font-bold tracking-wider px-2 py-0.5 rounded-md ${stationConfig.card.tag}`}>
+                <StationIcon className="w-3 h-3 stroke-[2.2]" />
+                <span>{tarea.partida}</span>
+              </span>
+            </div>
+            <h4 className="font-bold text-stone-900 dark:text-white text-lg sm:text-xl leading-snug tracking-tight">
               {tarea.nombre}
             </h4>
           </div>
-          <span className={`text-xs px-2.5 py-1 rounded-md font-black uppercase tracking-wider border-2 shrink-0 ${getPriorityBadgeStyle(tarea.prioridad)}`}>
-            {tarea.prioridad}
-          </span>
+          <PriorityBeaconBadge prioridad={tarea.prioridad} />
         </div>
 
         {/* Quantities & Status Info */}
-        <div className="flex justify-between items-center bg-slate-50 p-2.5 rounded-xl border-2 border-slate-900">
-          <div className="flex items-center gap-1 text-slate-900 font-black text-lg">
-            <span className="text-amber-500 text-xl font-black">#</span>
+        <div className="flex justify-between items-center bg-stone-100/80 dark:bg-slate-900/70 p-2.5 sm:p-3 rounded-xl border border-stone-200 dark:border-slate-700/50 shadow-inner">
+          <div className="flex items-center gap-1 text-stone-900 dark:text-slate-100 font-black text-lg">
+            <span className="text-amber-500 text-xl font-bold">#</span>
             <span>{tarea.cantidad}</span>
-            <span className="text-xs uppercase font-bold text-slate-600 tracking-wider ml-1">{tarea.unidad}</span>
+            <span className="text-xs uppercase font-semibold text-stone-500 dark:text-slate-400 tracking-wider ml-1">{tarea.unidad}</span>
           </div>
-          <span className="text-xs font-black uppercase tracking-wider px-2.5 py-1 rounded-md bg-slate-900 text-amber-400 border border-slate-900">
+          <span className="text-xs font-bold uppercase tracking-wider px-2.5 py-1 rounded-lg bg-stone-200/80 dark:bg-slate-800 text-stone-800 dark:text-amber-400 border border-stone-300 dark:border-slate-700/60 shadow-xs">
             {tarea.estado}
           </span>
         </div>
 
-        {/* Tactile Touch Action Bar (min-h-[44px] touch targets) */}
+        {/* Tactile Touch Action Bar (min-h-[48px] touch targets) */}
         <div 
           onPointerDown={(e) => e.stopPropagation()}
           onTouchStart={(e) => e.stopPropagation()}
-          className="flex items-center justify-between gap-2 pt-2 border-t-2 border-slate-100"
+          className="flex items-center justify-between gap-2 pt-2 border-t border-stone-100 dark:border-slate-700/50"
         >
           {/* Backtrack button */}
           {canBacktrack && prevState ? (
             <button
               type="button"
               onClick={() => moverTarea(tarea.id, prevState)}
-              className="min-h-[44px] min-w-[44px] px-3.5 py-2 bg-slate-100 hover:bg-slate-200 active:bg-blue-100 border-2 border-slate-900 rounded-xl text-slate-900 font-black text-xs uppercase flex items-center gap-1.5 transition-colors"
+              className="min-h-[48px] min-w-[48px] p-3 bg-stone-100 hover:bg-stone-200 active:bg-stone-300 dark:bg-slate-800 dark:hover:bg-slate-700 border border-stone-300 dark:border-slate-700 rounded-xl text-stone-900 dark:text-slate-200 font-bold text-xs uppercase flex items-center justify-center gap-1.5 transition-colors shadow-sm cursor-pointer"
               title={`Retroceder a ${prevState}`}
               aria-label={`Retroceder a ${prevState}`}
             >
               <ArrowLeft className="w-4 h-4 stroke-[3]" />
-              <span className="text-xs font-black">{prevState}</span>
+              <span className="text-xs font-bold">{prevState}</span>
             </button>
           ) : (
-            <div className="min-w-[44px]" />
+            <div className="min-w-[48px]" />
           )}
 
           {/* Quick Shopping Button */}
@@ -167,15 +201,15 @@ function MobileSwipeCard({ tarea }: { tarea: Tarea }) {
             <button
               type="button"
               onClick={() => moverTarea(tarea.id, nextState)}
-              className="min-h-[44px] min-w-[44px] px-3.5 py-2 bg-amber-400 hover:bg-amber-300 active:bg-amber-500 border-2 border-slate-900 rounded-xl text-slate-950 font-black text-xs uppercase flex items-center gap-1.5 transition-colors"
+              className="min-h-[48px] min-w-[48px] p-3 bg-amber-400 hover:bg-amber-300 active:bg-amber-500 dark:bg-amber-500 dark:hover:bg-amber-400 border border-amber-500/50 rounded-xl text-stone-950 font-bold text-xs uppercase flex items-center justify-center gap-1.5 transition-colors shadow-sm cursor-pointer"
               title={`Avanzar a ${nextState}`}
               aria-label={`Avanzar a ${nextState}`}
             >
-              <span className="text-xs font-black">{nextState}</span>
+              <span className="text-xs font-bold">{nextState}</span>
               <ArrowRight className="w-4 h-4 stroke-[3]" />
             </button>
           ) : (
-            <div className="min-w-[44px]" />
+            <div className="min-w-[48px]" />
           )}
         </div>
       </motion.div>
@@ -184,6 +218,9 @@ function MobileSwipeCard({ tarea }: { tarea: Tarea }) {
 }
 
 function DesktopTaskCard({ tarea, index }: { tarea: Tarea; index: number }) {
+  const stationConfig = getStationConfig(tarea.partida);
+  const StationIcon = stationConfig.icon;
+
   return (
     <Draggable draggableId={tarea.id} index={index}>
       {(provided, snapshot) => (
@@ -195,26 +232,32 @@ function DesktopTaskCard({ tarea, index }: { tarea: Tarea; index: number }) {
           className="mb-4 outline-none"
         >
           <div
-            className={`bg-white rounded-2xl p-5 border-2 transition-all flex flex-col gap-3 select-none ${
+            className={`group rounded-2xl p-5 border transition-all duration-300 flex flex-col gap-3.5 select-none cursor-grab active:cursor-grabbing ${
               snapshot.isDragging 
-                ? 'border-amber-500 ring-4 ring-slate-950 rotate-1 bg-amber-50/50 shadow-none' 
-                : 'border-slate-900 hover:border-amber-500 shadow-none'
+                ? `${stationConfig.card.dragging} shadow-2xl rotate-1 scale-[1.02]`
+                : `bg-white dark:bg-slate-800/90 border-stone-200/90 dark:border-slate-700/60 shadow-lg shadow-amber-900/5 dark:shadow-xl dark:shadow-black/40 hover:-translate-y-1 hover:shadow-2xl hover:shadow-amber-900/10 dark:hover:shadow-black/60 ${stationConfig.card.hoverBorder}`
             }`}
           >
             <div className="flex justify-between items-start gap-3">
-              <h4 className="font-black text-slate-950 text-lg leading-tight tracking-tight">
-                {tarea.nombre}
-              </h4>
-              <span className={`text-xs px-2.5 py-1 rounded-md font-black uppercase tracking-wider border-2 shrink-0 ${getPriorityBadgeStyle(tarea.prioridad)}`}>
-                {tarea.prioridad}
-              </span>
+              <div className="flex-1">
+                <div className="flex items-center gap-2 mb-1.5">
+                  <span className={`inline-flex items-center gap-1 text-[0.65rem] uppercase font-bold tracking-wider px-2 py-0.5 rounded-md ${stationConfig.card.tag}`}>
+                    <StationIcon className="w-3 h-3 stroke-[2.2]" />
+                    <span>{tarea.partida}</span>
+                  </span>
+                </div>
+                <h4 className="font-bold text-stone-900 dark:text-white text-lg leading-tight tracking-tight group-hover:text-amber-500 dark:group-hover:text-amber-400 transition-colors">
+                  {tarea.nombre}
+                </h4>
+              </div>
+              <PriorityBeaconBadge prioridad={tarea.prioridad} />
             </div>
 
-            <div className="flex justify-between items-center mt-1 pt-3 border-t-2 border-slate-100">
-              <div className="text-base font-black text-slate-900 bg-slate-100 px-3.5 py-1.5 rounded-xl border-2 border-slate-900 flex items-center gap-1.5">
-                <span className="text-amber-600 font-black">#</span>
+            <div className="flex justify-between items-center mt-1 pt-3 border-t border-stone-100 dark:border-slate-700/50">
+              <div className="text-base font-black text-stone-900 dark:text-slate-100 bg-stone-100/90 dark:bg-slate-900/70 px-3.5 py-1.5 rounded-xl border border-stone-300/80 dark:border-slate-700/50 flex items-center gap-1.5 shadow-inner">
+                <span className="text-amber-500 font-bold">#</span>
                 <span>{tarea.cantidad}</span>
-                <span className="text-xs uppercase font-bold text-slate-600 tracking-wider">{tarea.unidad}</span>
+                <span className="text-xs uppercase font-semibold text-stone-500 dark:text-slate-400 tracking-wider ml-0.5">{tarea.unidad}</span>
               </div>
 
               <div 
