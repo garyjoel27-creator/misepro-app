@@ -1,23 +1,38 @@
 import { useState, useEffect } from 'react';
 import { DragDropContext, Droppable } from '@hello-pangea/dnd';
 import type { DropResult } from '@hello-pangea/dnd';
-import { Clock, Flame, CheckCircle2, Layers } from 'lucide-react';
+import { Clock, Flame, CheckCircle2, Layers, Trash2 } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useBrigadeStore } from '../store/useBrigadeStore';
 import type { Tarea } from '../store/useBrigadeStore';
 import { TaskCard } from './TaskCard';
+import { InlineQuickAdd } from './InlineQuickAdd';
 import { getStationConfig } from '../types/stations';
 
 interface KanbanBoardProps {
   partida: string;
+  masterMode?: boolean;
 }
 
 const COLUMNS = ['Pendiente', 'En Proceso', 'Completado'] as const;
 type MobileTab = (typeof COLUMNS)[number] | 'Todas';
 
-export function KanbanBoard({ partida }: KanbanBoardProps) {
+/**
+ * Ordena las elaboraciones para que lo pendiente/en proceso quede arriba
+ * y lo finalizado baje suavemente al fondo sin desaparecer de la pantalla.
+ */
+function ordenarTareasInPlace(tareas: Tarea[]): Tarea[] {
+  return [...tareas].sort((a, b) => {
+    if (a.estado === 'Completado' && b.estado !== 'Completado') return 1;
+    if (a.estado !== 'Completado' && b.estado === 'Completado') return -1;
+    return 0;
+  });
+}
+
+export function KanbanBoard({ partida, masterMode = false }: KanbanBoardProps) {
   const kanbanTareas = useBrigadeStore(state => state.kanbanTareas);
   const moverTarea = useBrigadeStore(state => state.moverTarea);
+  const limpiarCompletadas = useBrigadeStore(state => state.limpiarCompletadas);
   const stationConfig = getStationConfig(partida);
   
   const [isDesktop, setIsDesktop] = useState(() => {
@@ -26,7 +41,8 @@ export function KanbanBoard({ partida }: KanbanBoardProps) {
     }
     return true;
   });
-  const [activeMobileTab, setActiveMobileTab] = useState<MobileTab>('Pendiente');
+  // En móvil por defecto 'Todas' para que nada desaparezca al pulsar
+  const [activeMobileTab, setActiveMobileTab] = useState<MobileTab>('Todas');
 
   useEffect(() => {
     const checkViewport = () => {
@@ -38,6 +54,7 @@ export function KanbanBoard({ partida }: KanbanBoardProps) {
   }, []);
 
   const tareasDePartida = kanbanTareas.filter(t => t.partida === partida);
+  const completadasCount = tareasDePartida.filter(t => t.estado === 'Completado').length;
 
   const onDragEnd = (result: DropResult) => {
     const { destination, source, draggableId } = result;
@@ -56,7 +73,7 @@ export function KanbanBoard({ partida }: KanbanBoardProps) {
 
   const getFilteredMobileTasks = () => {
     if (activeMobileTab === 'Todas') {
-      return tareasDePartida;
+      return ordenarTareasInPlace(tareasDePartida);
     }
     return tareasDePartida.filter(t => t.estado === activeMobileTab);
   };
@@ -73,6 +90,63 @@ export function KanbanBoard({ partida }: KanbanBoardProps) {
         return <Layers className="w-4 h-4 stroke-[2.5]" />;
     }
   };
+
+  // Master Mode: Lista vertical fluida para el Panel Maestro del Chef
+  if (masterMode) {
+    const sortedTasks = ordenarTareasInPlace(tareasDePartida);
+
+    return (
+      <div className="flex flex-col gap-2 w-full text-left">
+        <InlineQuickAdd partida={partida} />
+
+        {/* Barra de estado y botón Limpiar para el Chef */}
+        {completadasCount > 0 && (
+          <div className="flex items-center justify-between px-2 py-1 bg-emerald-500/10 border border-emerald-500/20 rounded-xl">
+            <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400">
+              {completadasCount} terminada{completadasCount > 1 ? 's' : ''} al final
+            </span>
+            <button
+              type="button"
+              onClick={() => {
+                if (confirm(`¿Limpiar las ${completadasCount} tareas terminadas de ${partida}?`)) {
+                  limpiarCompletadas(partida);
+                }
+              }}
+              className="text-[10px] font-black uppercase tracking-wider text-red-500 hover:text-red-600 flex items-center gap-1 cursor-pointer"
+              title="Quitar las tareas finalizadas de la lista"
+            >
+              <Trash2 className="w-3 h-3" />
+              <span>Limpiar</span>
+            </button>
+          </div>
+        )}
+
+        {sortedTasks.length === 0 ? (
+          <div className="text-center py-8 opacity-60">
+            <CheckCircle2 className="w-8 h-8 mx-auto mb-2 text-stone-400 dark:text-slate-600" />
+            <p className="text-xs uppercase font-bold tracking-wider text-stone-500 dark:text-slate-400">Todo listo</p>
+          </div>
+        ) : (
+          <div className="rounded-2xl border border-stone-200/60 dark:border-slate-800/60 bg-white/60 dark:bg-slate-900/60 overflow-hidden shadow-sm">
+            <AnimatePresence mode="popLayout">
+              {sortedTasks.map((tarea, index) => (
+                <motion.div
+                  key={tarea.id}
+                  layout
+                  initial={{ opacity: 0, y: 6 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, scale: 0.95 }}
+                  transition={{ duration: 0.22, ease: "easeOut" }}
+                >
+                  <TaskCard tarea={tarea} index={index} isMobile={true} />
+                </motion.div>
+              ))}
+            </AnimatePresence>
+          </div>
+        )}
+      </div>
+    );
+  }
 
   // Mobile View (< md / 768px): One-Hand Stacked Layout with Swipe gestures
   if (!isDesktop) {
@@ -166,7 +240,7 @@ export function KanbanBoard({ partida }: KanbanBoardProps) {
           </button>
         </div>
 
-        {/* Informative Header & Gesture Help */}
+        {/* Informative Header */}
         <div className="flex items-center justify-between px-1 py-1 gap-2">
           <div className="flex items-center gap-2">
             <span className="text-xs uppercase font-bold tracking-wider text-stone-500 dark:text-slate-400">Vista:</span>
@@ -174,44 +248,66 @@ export function KanbanBoard({ partida }: KanbanBoardProps) {
               {activeMobileTab} ({filteredTasks.length})
             </span>
           </div>
-          <div className="px-2.5 py-1 bg-stone-100 dark:bg-slate-900/80 border border-stone-300 dark:border-slate-800 rounded-xl text-[0.65rem] sm:text-xs font-bold uppercase tracking-wider text-stone-600 dark:text-slate-400 shadow-xs">
-            ↔ Desliza para mover
-          </div>
+
+          {completadasCount > 0 && (
+            <button
+              type="button"
+              onClick={() => {
+                if (confirm(`¿Limpiar las ${completadasCount} tareas terminadas de ${partida}?`)) {
+                  limpiarCompletadas(partida);
+                }
+              }}
+              className="px-2.5 py-1 rounded-xl bg-red-500/10 border border-red-500/20 hover:bg-red-500 hover:text-white text-red-600 dark:text-red-400 text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 transition-all cursor-pointer shadow-xs active:scale-95"
+              title="Quitar las tareas finalizadas de la lista"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+              <span>Limpiar ({completadasCount})</span>
+            </button>
+          )}
         </div>
 
-        {/* Mobile Task Cards List with PopLayout exit animation */}
-        <div className="space-y-3 pb-10">
-          <AnimatePresence mode="popLayout">
-            {filteredTasks.length === 0 ? (
-              <motion.div 
-                key="empty"
-                initial={{ opacity: 0, scale: 0.95 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.95 }}
-                className="p-8 text-center bg-white/80 dark:bg-slate-900/60 backdrop-blur-md border border-stone-200/90 dark:border-slate-800 rounded-2xl shadow-sm"
-              >
-                <p className="font-bold text-stone-900 dark:text-white uppercase tracking-wide text-sm">
-                  No hay preparaciones en {activeMobileTab}
-                </p>
-                <p className="text-xs text-stone-500 dark:text-slate-400 font-medium mt-1">
-                  Usa los gestos de deslizamiento o pestañas para gestionar tareas.
-                </p>
-              </motion.div>
-            ) : (
-              filteredTasks.map((tarea, index) => (
-                <motion.div
-                  key={tarea.id}
-                  layout
-                  initial={{ opacity: 0, y: 12 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, scale: 0.9 }}
-                  transition={{ duration: 0.2 }}
+        {/* Mobile Task Cards List - Apple Reminders Grouped Card */}
+        <div className="pb-10 flex flex-col gap-3">
+          {(activeMobileTab === 'Pendiente' || activeMobileTab === 'Todas') && (
+            <InlineQuickAdd partida={partida} />
+          )}
+
+          <div className="rounded-2xl sm:rounded-3xl border border-stone-200/80 dark:border-slate-800/80 bg-white/80 dark:bg-slate-900/70 backdrop-blur-xl shadow-md overflow-hidden">
+            <AnimatePresence mode="popLayout">
+              {filteredTasks.length === 0 ? (
+                <motion.div 
+                  key="empty"
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.95 }}
+                  className="p-10 text-center flex flex-col items-center justify-center min-h-[180px]"
                 >
-                  <TaskCard tarea={tarea} index={index} isMobile={true} />
+                  <div className="w-12 h-12 mb-3 rounded-full bg-stone-100/80 dark:bg-slate-800/80 flex items-center justify-center">
+                    <CheckCircle2 className="w-6 h-6 text-stone-400 dark:text-amber-400/70 stroke-[1.5]" />
+                  </div>
+                  <p className="font-serif text-lg tracking-wide text-stone-800 dark:text-slate-100">
+                    Mise en place lista, Chef
+                  </p>
+                  <p className="text-[0.65rem] text-stone-400 dark:text-slate-500 font-bold mt-1 uppercase tracking-widest">
+                    {activeMobileTab === 'Todas' ? 'Sin tareas asignadas' : `0 tareas en ${activeMobileTab}`}
+                  </p>
                 </motion.div>
-              ))
-            )}
-          </AnimatePresence>
+              ) : (
+                filteredTasks.map((tarea, index) => (
+                  <motion.div
+                    key={tarea.id}
+                    layout
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, x: -20, scale: 0.95 }}
+                    transition={{ duration: 0.18 }}
+                  >
+                    <TaskCard tarea={tarea} index={index} isMobile={true} />
+                  </motion.div>
+                ))
+              )}
+            </AnimatePresence>
+          </div>
         </div>
       </div>
     );
@@ -236,9 +332,26 @@ export function KanbanBoard({ partida }: KanbanBoardProps) {
                   </span>
                   <span>{columnId}</span>
                 </h3>
-                <span className={`font-black text-xs py-0.5 px-2.5 rounded-full ${stationConfig.column.countBadge}`}>
-                  {tareasInColumn.length}
-                </span>
+                <div className="flex items-center gap-2">
+                  {columnId === 'Completado' && tareasInColumn.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (confirm(`¿Limpiar las ${tareasInColumn.length} tareas terminadas de ${partida}?`)) {
+                          limpiarCompletadas(partida);
+                        }
+                      }}
+                      className="text-[10px] font-black uppercase tracking-wider text-red-500 hover:text-red-600 px-2 py-0.5 rounded-lg border border-red-500/20 hover:bg-red-500/10 flex items-center gap-1 cursor-pointer transition-colors"
+                      title="Limpiar completadas"
+                    >
+                      <Trash2 className="w-3 h-3" />
+                      <span>Limpiar</span>
+                    </button>
+                  )}
+                  <span className={`font-black text-xs py-0.5 px-2.5 rounded-full ${stationConfig.column.countBadge}`}>
+                    {tareasInColumn.length}
+                  </span>
+                </div>
               </div>
               <Droppable droppableId={columnId}>
                 {(provided, snapshot) => (
@@ -251,9 +364,19 @@ export function KanbanBoard({ partida }: KanbanBoardProps) {
                         : 'bg-transparent'
                     }`}
                   >
-                    {tareasInColumn.map((tarea, index) => (
-                      <TaskCard key={tarea.id} tarea={tarea} index={index} isMobile={false} />
-                    ))}
+                    {columnId === 'Pendiente' && <InlineQuickAdd partida={partida} />}
+                    {tareasInColumn.length === 0 ? (
+                      <div className="flex flex-col items-center justify-center h-full min-h-[200px] opacity-70 pointer-events-none mt-4">
+                        <CheckCircle2 className="w-8 h-8 text-stone-300 dark:text-slate-600 mb-3 stroke-[1.5]" />
+                        <p className="font-serif text-base tracking-wide text-stone-500 dark:text-slate-400">
+                          Mise en place lista, Chef
+                        </p>
+                      </div>
+                    ) : (
+                      tareasInColumn.map((tarea, index) => (
+                        <TaskCard key={tarea.id} tarea={tarea} index={index} isMobile={false} />
+                      ))
+                    )}
                     {provided.placeholder}
                   </div>
                 )}

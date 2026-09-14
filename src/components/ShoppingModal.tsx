@@ -6,9 +6,10 @@ import type { Tarea } from '../store/useBrigadeStore';
 
 interface ShoppingModalProps {
   tarea: Tarea;
+  compact?: boolean;
 }
 
-export function ShoppingModal({ tarea }: ShoppingModalProps) {
+export function ShoppingModal({ tarea, compact = false }: ShoppingModalProps) {
   const [open, setOpen] = useState(false);
   const [cantidad, setCantidad] = useState(tarea.cantidad);
   const agregarCompra = useBrigadeStore(state => state.agregarCompra);
@@ -38,11 +39,15 @@ export function ShoppingModal({ tarea }: ShoppingModalProps) {
         <button 
           onPointerDown={(e) => e.stopPropagation()}
           onTouchStart={(e) => e.stopPropagation()}
-          className="min-h-[48px] min-w-[48px] p-3 bg-stone-100 hover:bg-amber-400/20 dark:bg-slate-800/80 dark:hover:bg-amber-400/20 text-stone-700 hover:text-amber-700 dark:text-slate-300 dark:hover:text-amber-300 border border-stone-300 dark:border-slate-700/60 hover:border-amber-500/40 rounded-xl flex items-center justify-center transition-all shadow-sm cursor-pointer" 
+          className={
+            compact
+              ? "p-1.5 text-stone-400 hover:text-amber-500 transition-colors cursor-pointer"
+              : "min-h-[48px] min-w-[48px] p-3 bg-stone-100 hover:bg-amber-400/20 dark:bg-slate-800/80 dark:hover:bg-amber-400/20 text-stone-700 hover:text-amber-700 dark:text-slate-300 dark:hover:text-amber-300 border border-stone-300 dark:border-slate-700/60 hover:border-amber-500/40 rounded-xl flex items-center justify-center transition-all shadow-sm cursor-pointer"
+          } 
           title="Añadir a lista de compras"
           aria-label={`Añadir ${tarea.nombre} a compras`}
         >
-          <ShoppingCart className="w-5 h-5 stroke-[2.5]" />
+          <ShoppingCart className={compact ? "w-4 h-4 stroke-[2]" : "w-5 h-5 stroke-[2.5]"} />
         </button>
       </Dialog.Trigger>
       <Dialog.Portal>
