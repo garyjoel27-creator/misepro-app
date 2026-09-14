@@ -20,7 +20,9 @@ import {
   Trash2, 
   BellOff, 
   RotateCcw,
-  Mic 
+  Mic,
+  ChefHat,
+  Plus 
 } from 'lucide-react';
 import { KanbanBoard } from './components/KanbanBoard';
 import { LogisticsDrawer } from './components/LogisticsDrawer';
@@ -30,6 +32,8 @@ import { ServiceCountdown } from './components/ServiceCountdown';
 import { CreateTaskModal } from './components/CreateTaskModal';
 import { ServiceDashboard } from './components/ServiceDashboard';
 import { VoiceAssistantModal } from './components/VoiceAssistantModal';
+import { OnboardingWizardModal } from './components/OnboardingWizardModal';
+import { StationManagerModal } from './components/StationManagerModal';
 import { useTheme } from './hooks/useTheme';
 import { getStationConfig } from './types/stations';
 
@@ -216,6 +220,8 @@ export default function App() {
     analizarEscandallo, 
     analizandoIA, 
     partidas,
+    coloresPartidas,
+    nombreRestaurante,
     temporizadores,
     agotados86,
     isChefMode,
@@ -243,6 +249,9 @@ export default function App() {
   
   // Voice Assistant Modal
   const [showVoiceModal, setShowVoiceModal] = useState(false);
+
+  // Station Manager Modal
+  const [showStationManager, setShowStationManager] = useState(false);
   
   const { isDark, toggleTheme } = useTheme();
 
@@ -297,6 +306,13 @@ export default function App() {
                   MISE·PRO
                 </h1>
               </div>
+              <button
+                onClick={() => setShowStationManager(true)}
+                className="text-[10px] uppercase tracking-widest text-stone-400 dark:text-slate-400 font-bold truncate max-w-[140px] sm:max-w-[220px] text-left hover:text-amber-500 transition-colors cursor-pointer"
+                title="Personalizar establecimiento y partidas"
+              >
+                {nombreRestaurante || 'Mi Cocina Pro'}
+              </button>
             </div>
           </div>
           
@@ -426,7 +442,7 @@ export default function App() {
                 </Tabs.Trigger>
 
                 {partidas.map(station => {
-                  const config = getStationConfig(station);
+                  const config = getStationConfig(station, coloresPartidas[station]);
                   const StationIcon = config.icon;
                   const count = kanbanTareas.filter(t => t.partida === station && t.estado !== 'Completado').length;
                   return (
@@ -449,6 +465,21 @@ export default function App() {
                     </Tabs.Trigger>
                   );
                 })}
+
+                {/* Botón directo para gestionar o añadir partidas */}
+                <button
+                  type="button"
+                  onClick={() => setShowStationManager(true)}
+                  className={`min-h-[44px] px-3.5 py-2 text-xs font-bold uppercase tracking-wider rounded-xl transition-all whitespace-nowrap flex items-center gap-1.5 cursor-pointer border border-dashed ${
+                    isDark 
+                      ? 'border-slate-700 hover:border-amber-500/60 text-slate-400 hover:text-amber-400' 
+                      : 'border-stone-300 hover:border-amber-500 text-stone-600 hover:text-amber-600'
+                  }`}
+                  title="Gestionar o añadir partidas"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Partidas</span>
+                </button>
               </Tabs.List>
             </div>
             
@@ -458,23 +489,44 @@ export default function App() {
                 value="Panel Maestro"
                 className="focus:outline-none flex-1 flex flex-col"
               >
-                <div className="flex-1 min-h-[60vh] grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 sm:gap-6 items-start">
-                  {partidas.map(station => (
-                    <div key={station} className="flex flex-col h-full bg-white/60 dark:bg-slate-900/40 backdrop-blur-xl rounded-3xl border border-stone-200/80 dark:border-slate-800/80 overflow-hidden shadow-lg shadow-amber-900/5 dark:shadow-xl dark:shadow-black/40">
-                      <div className="p-4 border-b border-stone-200/80 dark:border-slate-800/80 bg-stone-50/70 dark:bg-slate-950/50 flex items-center justify-between">
-                        <h3 className="font-bold text-stone-900 dark:text-slate-100 uppercase tracking-wider text-sm">
-                          {station}
-                        </h3>
-                        <span className={`font-black text-xs py-0.5 px-2.5 rounded-full ${getStationConfig(station).column.countBadge}`}>
-                          {kanbanTareas.filter(t => t.partida === station && t.estado !== 'Completado').length} pend.
-                        </span>
-                      </div>
-                      <div className="p-2 sm:p-3 overflow-y-auto max-h-[60vh] flex flex-col">
-                        <KanbanBoard partida={station} masterMode />
-                      </div>
+                {partidas.length === 0 ? (
+                  <div className="p-8 sm:p-12 text-center rounded-3xl border-2 border-dashed border-amber-500/40 bg-amber-500/5 my-8 max-w-md mx-auto flex flex-col items-center gap-3">
+                    <div className="w-14 h-14 rounded-2xl bg-amber-500/10 text-amber-500 flex items-center justify-center">
+                      <ChefHat className="w-7 h-7" />
                     </div>
-                  ))}
-                </div>
+                    <h3 className="font-serif text-xl font-bold text-stone-900 dark:text-white">
+                      Tu cocina no tiene partidas aún
+                    </h3>
+                    <p className="text-xs text-stone-500 dark:text-slate-400">
+                      Crea tus partidas personalizadas (ej. Plancha, Frituras, Cuarto Frío) o carga la plantilla clásica.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => setShowStationManager(true)}
+                      className="mt-2 min-h-[48px] px-6 rounded-2xl bg-amber-500 hover:bg-amber-400 text-stone-950 font-black text-xs uppercase tracking-wider cursor-pointer shadow-lg shadow-amber-500/20 active:scale-95"
+                    >
+                      + Configurar Mis Partidas
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex-1 min-h-[60vh] grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 sm:gap-6 items-start">
+                    {partidas.map(station => (
+                      <div key={station} className="flex flex-col h-full bg-white/60 dark:bg-slate-900/40 backdrop-blur-xl rounded-3xl border border-stone-200/80 dark:border-slate-800/80 overflow-hidden shadow-lg shadow-amber-900/5 dark:shadow-xl dark:shadow-black/40">
+                        <div className="p-4 border-b border-stone-200/80 dark:border-slate-800/80 bg-stone-50/70 dark:bg-slate-950/50 flex items-center justify-between">
+                          <h3 className="font-bold text-stone-900 dark:text-slate-100 uppercase tracking-wider text-sm">
+                            {station}
+                          </h3>
+                          <span className={`font-black text-xs py-0.5 px-2.5 rounded-full ${getStationConfig(station, coloresPartidas[station]).column.countBadge}`}>
+                            {kanbanTareas.filter(t => t.partida === station && t.estado !== 'Completado').length} pend.
+                          </span>
+                        </div>
+                        <div className="p-2 sm:p-3 overflow-y-auto max-h-[60vh] flex flex-col">
+                          <KanbanBoard partida={station} masterMode />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </Tabs.Content>
 
               {partidas.map(station => (
@@ -660,6 +712,33 @@ export default function App() {
                   }`}
                 >
                   {isChefMode ? 'Bloquear' : 'Desbloquear'}
+                </button>
+              </div>
+            </div>
+
+            {/* Gestor de Partidas y Establecimiento */}
+            <div className="p-6 rounded-3xl border bg-white/70 dark:bg-slate-900/70 border-stone-200/80 dark:border-slate-800/80 shadow-sm flex flex-col gap-3">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-2xl bg-amber-500/10 text-amber-500 flex items-center justify-center shrink-0">
+                    <ChefHat className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="font-serif text-lg font-bold text-stone-900 dark:text-white">
+                      Partidas & Establecimiento
+                    </h3>
+                    <p className="text-xs text-stone-500 dark:text-slate-400">
+                      {nombreRestaurante} • {partidas.length} {partidas.length === 1 ? 'partida activa' : 'partidas activas'}
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setShowStationManager(true)}
+                  className="min-h-[44px] px-5 rounded-2xl bg-amber-500 hover:bg-amber-400 text-stone-950 font-black text-xs uppercase tracking-wider cursor-pointer transition-transform active:scale-95 shadow-md shadow-amber-500/10 self-start sm:self-auto"
+                >
+                  Personalizar Partidas
                 </button>
               </div>
             </div>
@@ -903,6 +982,15 @@ export default function App() {
         isOpen={showVoiceModal}
         onClose={() => setShowVoiceModal(false)}
         currentStation={(partidas[0] as any) || 'Saucier'}
+      />
+
+      {/* Asistente Inicial de Bienvenida (Onboarding) */}
+      <OnboardingWizardModal />
+
+      {/* Gestor Visual de Partidas y Restaurante */}
+      <StationManagerModal
+        open={showStationManager}
+        onOpenChange={setShowStationManager}
       />
     </div>
   );

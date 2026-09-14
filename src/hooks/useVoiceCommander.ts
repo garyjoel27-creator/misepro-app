@@ -17,7 +17,6 @@ export interface ParsedVoiceCommand {
   confianza: number; // 0 to 1
 }
 
-// Interfaz para Web Speech API
 interface SpeechRecognitionErrorEvent extends Event {
   error: string;
   message?: string;
@@ -28,8 +27,20 @@ interface SpeechRecognitionEvent extends Event {
   results: SpeechRecognitionResultList;
 }
 
-export function parseVoiceCommand(text: string, defaultStation: StationName = 'Saucier'): ParsedVoiceCommand {
+export function parseVoiceCommand(
+  text: string, 
+  defaultStation: StationName = 'Saucier',
+  availableStations: string[] = []
+): ParsedVoiceCommand {
   const clean = text.trim().toLowerCase();
+  if (!clean) {
+    return {
+      tipo: 'desconocido',
+      rawText: '',
+      nombre: '',
+      confianza: 0
+    };
+  }
   
   // 1. Detectar Intención: TEMPORIZADOR
   if (
@@ -41,11 +52,9 @@ export function parseVoiceCommand(text: string, defaultStation: StationName = 'S
     clean.includes('avísame') ||
     clean.includes('avisame')
   ) {
-    // Extraer minutos
     const minMatch = clean.match(/(\d+)\s*(minutos?|min|m)/i) || clean.match(/(\d+)/);
     const minutos = minMatch ? parseInt(minMatch[1], 10) : 5;
     
-    // Extraer nombre/descripción del temporizador
     let nombre = clean
       .replace(/temporizador/gi, '')
       .replace(/alarma/gi, '')
@@ -57,7 +66,6 @@ export function parseVoiceCommand(text: string, defaultStation: StationName = 'S
       .trim();
       
     if (!nombre) nombre = 'Cocción ' + minutos + ' min';
-    // Capitalizar
     nombre = nombre.charAt(0).toUpperCase() + nombre.slice(1);
 
     return {
@@ -65,7 +73,7 @@ export function parseVoiceCommand(text: string, defaultStation: StationName = 'S
       rawText: text,
       nombre,
       minutos,
-      partida: detectPartida(clean) || defaultStation,
+      partida: detectPartida(clean, availableStations) || defaultStation,
       confianza: 0.95
     };
   }
@@ -102,7 +110,7 @@ export function parseVoiceCommand(text: string, defaultStation: StationName = 'S
       tipo: 'agotado',
       rawText: text,
       nombre,
-      partida: detectPartida(clean) || defaultStation,
+      partida: detectPartida(clean, availableStations) || defaultStation,
       motivo: 'Agotado durante el servicio (Voz)',
       confianza: 0.9
     };
@@ -134,7 +142,6 @@ export function parseVoiceCommand(text: string, defaultStation: StationName = 'S
     if (!nombre) nombre = 'Ingrediente';
     nombre = nombre.charAt(0).toUpperCase() + nombre.slice(1);
 
-    // Deducir categoría
     const categoria = deduceCategory(nombre);
 
     return {
@@ -149,11 +156,9 @@ export function parseVoiceCommand(text: string, defaultStation: StationName = 'S
   }
 
   // 4. Intención por Defecto: TAREA / MISE EN PLACE
-  // "agregar 4 kilos de solomillo a carnes", "cortar 3 cebollas en garde manger", "hacer 5 litros de fondo en saucier"
   const { cantidad, unidad, textoRestante } = extractQuantityAndUnit(clean);
-  const partida = detectPartida(clean) || defaultStation;
+  const partida = detectPartida(clean, availableStations) || defaultStation;
   
-  // Limpiar texto para obtener el nombre de la tarea
   let nombre = textoRestante
     .replace(/agregar/gi, '')
     .replace(/añadir/gi, '')
@@ -164,27 +169,24 @@ export function parseVoiceCommand(text: string, defaultStation: StationName = 'S
     .replace(/en la partida de/gi, '')
     .replace(/a la partida/gi, '')
     .replace(/en la partida/gi, '')
-    .replace(/a carnes/gi, '')
-    .replace(/a pescados/gi, '')
-    .replace(/a saucier/gi, '')
-    .replace(/a garde manger/gi, '')
-    .replace(/en carnes/gi, '')
-    .replace(/en pescados/gi, '')
-    .replace(/en saucier/gi, '')
-    .replace(/en garde manger/gi, '')
     .replace(/prioridad urgente/gi, '')
     .replace(/prioridad crítica/gi, '')
     .replace(/prioridad critica/gi, '')
     .replace(/prioridad media/gi, '')
     .replace(/prioridad baja/gi, '')
     .replace(/urgente/gi, '')
-    .replace(/^de /gi, '')
-    .trim();
+    .replace(/^de /gi, '');
 
+  // Quitar el nombre de la partida si se mencionó explícitamente
+  if (partida) {
+    const regPartida = new RegExp(`(a |en )?${partida}`, 'gi');
+    nombre = nombre.replace(regPartida, '');
+  }
+
+  nombre = nombre.trim();
   if (!nombre) nombre = clean;
   nombre = nombre.charAt(0).toUpperCase() + nombre.slice(1);
 
-  // Detectar prioridad
   let prioridad: 'Critica' | 'Media' | 'Baja' = 'Media';
   if (clean.includes('urgente') || clean.includes('crítica') || clean.includes('critica') || clean.includes('alta')) {
     prioridad = 'Critica';
@@ -204,27 +206,34 @@ export function parseVoiceCommand(text: string, defaultStation: StationName = 'S
   };
 }
 
-function detectPartida(text: string): StationName | null {
+function detectPartida(text: string, availableStations: string[] = []): StationName | null {
+  // 1. Comparar primero contra las partidas personalizadas reales del usuario
+  for (const st of availableStations) {
+    if (text.includes(st.toLowerCase())) {
+      return st;
+    }
+  }
+
+  // 2. Mapeo clásico de respaldo
   if (text.includes('saucier') || text.includes('salsa') || text.includes('fondo') || text.includes('caldo')) {
-    return 'Saucier';
+    return availableStations.find(s => s.toLowerCase() === 'saucier') || 'Saucier';
   }
   if (text.includes('garde manger') || text.includes('cuarto frío') || text.includes('cuarto frio') || text.includes('ensalada') || text.includes('vegetal')) {
-    return 'Garde Manger';
+    return availableStations.find(s => s.toLowerCase() === 'garde manger') || 'Garde Manger';
   }
   if (text.includes('pescado') || text.includes('poissonier') || text.includes('marisco') || text.includes('mar') || text.includes('pescados')) {
-    return 'Pescados';
+    return availableStations.find(s => s.toLowerCase() === 'pescados') || 'Pescados';
   }
-  if (text.includes('carne') || text.includes('carnes') || text.includes('rôtisseur') || text.includes('rotisseur') || text.includes('asado')) {
-    return 'Carnes';
+  if (text.includes('carne') || text.includes('carnes') || text.includes('rôtisseur') || text.includes('rotisseur') || text.includes('asado') || text.includes('parrilla') || text.includes('brasa')) {
+    return availableStations.find(s => s.toLowerCase() === 'carnes') || 'Carnes';
   }
+  
   return null;
 }
 
 function extractQuantityAndUnit(text: string): { cantidad: number; unidad: string; textoRestante: string } {
-  // Ejemplos: "5 kilos", "10 litros", "3 kg", "500 gramos", "2 botes", "4 unidades", "un kilo", "dos litros"
   let cleanText = text;
   
-  // Reemplazar números en palabras básicos en español
   cleanText = cleanText
     .replace(/\bun\b/g, '1')
     .replace(/\buna\b/g, '1')
@@ -238,8 +247,7 @@ function extractQuantityAndUnit(text: string): { cantidad: number; unidad: strin
     .replace(/\bnueve\b/g, '9')
     .replace(/\bdiez\b/g, '10');
 
-  // Buscar patrón: número + unidad
-  const regex = /(\d+(?:[.,]\d+)?)\s*(kilos?|kg|litros?|l|gramos?|gr|g|unidades?|ud|uds|botellas?|paquetes?|manojo|piezas?)/i;
+  const regex = /(\d+(?:[.,]\d+)?)\s*(kilos?|kg|litros?|l|gramos?|gr|g|unidades?|ud|uds|botellas?|paquetes?|manojo|piezas?|raciones|latas)/i;
   const match = cleanText.match(regex);
 
   if (match) {
@@ -248,16 +256,15 @@ function extractQuantityAndUnit(text: string): { cantidad: number; unidad: strin
     const cantidad = parseFloat(rawVal) || 1;
     
     let unidad = 'Kg';
-    if (rawUnit.startsWith('l')) unidad = 'Litros';
+    if (rawUnit.startsWith('l') && !rawUnit.startsWith('lat')) unidad = 'Litros';
     else if (rawUnit.startsWith('g')) unidad = 'Gramos';
-    else if (rawUnit.startsWith('u') || rawUnit.startsWith('b') || rawUnit.startsWith('p') || rawUnit.startsWith('m')) unidad = 'Unidades';
+    else if (rawUnit.startsWith('u') || rawUnit.startsWith('b') || rawUnit.startsWith('p') || rawUnit.startsWith('m') || rawUnit.startsWith('r') || rawUnit.startsWith('lat')) unidad = 'Unidades';
     else unidad = 'Kg';
 
     const textoRestante = cleanText.replace(match[0], '').replace(/\s{2,}/g, ' ').trim();
     return { cantidad, unidad, textoRestante };
   }
 
-  // Buscar solo número sin unidad
   const numOnlyMatch = cleanText.match(/\b(\d+(?:[.,]\d+)?)\b/);
   if (numOnlyMatch) {
     const rawVal = numOnlyMatch[1].replace(',', '.');
@@ -288,7 +295,7 @@ function deduceCategory(name: string): 'Vegetales' | 'Proteinas' | 'Lacteos/Seco
   return 'Vegetales';
 }
 
-export function useVoiceCommander(defaultStation: StationName = 'Saucier') {
+export function useVoiceCommander(defaultStation: StationName = 'Saucier', availableStations: string[] = []) {
   const [isListening, setIsListening] = useState(false);
   const [isSupported, setIsSupported] = useState(true);
   const [transcript, setTranscript] = useState('');
@@ -297,9 +304,19 @@ export function useVoiceCommander(defaultStation: StationName = 'Saucier') {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const recognitionRef = useRef<any>(null);
+  const silenceTimeoutRef = useRef<any>(null);
+  const accumulatedTranscriptRef = useRef<string>('');
+
+  const processAccumulatedText = useCallback(() => {
+    const fullText = accumulatedTranscriptRef.current.trim();
+    if (fullText) {
+      setTranscript(fullText);
+      const parsed = parseVoiceCommand(fullText, defaultStation, availableStations);
+      setParsedCommand(parsed);
+    }
+  }, [defaultStation, availableStations]);
 
   useEffect(() => {
-    // Chequear disponibilidad de Web Speech API (Safari iOS = webkitSpeechRecognition, Chrome/Android = SpeechRecognition/webkitSpeechRecognition)
     const SpeechRecognition = 
       (window as any).SpeechRecognition || 
       (window as any).webkitSpeechRecognition;
@@ -311,39 +328,48 @@ export function useVoiceCommander(defaultStation: StationName = 'Saucier') {
 
     try {
       const recognition = new SpeechRecognition();
-      recognition.continuous = false; // Parar al terminar de hablar para procesar de inmediato
+      // continuous = true permite que el cocinero hable con pausas sin que el micro se apague
+      recognition.continuous = true;
       recognition.interimResults = true;
-      recognition.lang = 'es-ES'; // Castellano nativo de cocina
+      recognition.lang = 'es-ES';
 
       recognition.onstart = () => {
         setIsListening(true);
         setErrorMessage(null);
-        setTranscript('');
-        setInterimTranscript('');
       };
 
       recognition.onresult = (event: SpeechRecognitionEvent) => {
         let interim = '';
-        let final = '';
+        let finalChunk = '';
 
         for (let i = event.resultIndex; i < event.results.length; ++i) {
           const res = event.results[i];
           if (res.isFinal) {
-            final += res[0].transcript;
+            finalChunk += res[0].transcript + ' ';
           } else {
             interim += res[0].transcript;
           }
         }
 
-        if (interim) {
-          setInterimTranscript(interim);
+        if (finalChunk) {
+          accumulatedTranscriptRef.current += finalChunk;
+          setTranscript(accumulatedTranscriptRef.current);
         }
 
-        if (final) {
-          setTranscript(final);
-          const parsed = parseVoiceCommand(final, defaultStation);
-          setParsedCommand(parsed);
+        if (interim) {
+          setInterimTranscript(interim);
+        } else {
+          setInterimTranscript('');
         }
+
+        // Buffer inteligente de silencio: da 3.2 segundos de silencio antes de auto-procesar
+        if (silenceTimeoutRef.current) {
+          clearTimeout(silenceTimeoutRef.current);
+        }
+
+        silenceTimeoutRef.current = setTimeout(() => {
+          processAccumulatedText();
+        }, 3200);
       };
 
       recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
@@ -351,11 +377,10 @@ export function useVoiceCommander(defaultStation: StationName = 'Saucier') {
         if (event.error === 'not-allowed') {
           setErrorMessage('Permiso de micrófono denegado. Permite el acceso para usar la voz.');
         } else if (event.error === 'no-speech') {
-          setErrorMessage('No se detectó audio. Habla cerca del micrófono del dispositivo.');
+          // No emitir error ruidoso en no-speech para dar tiempo al usuario a pensar
         } else {
-          setErrorMessage(`Error de reconocimiento: ${event.error}`);
+          setErrorMessage(`Aviso de voz: ${event.error}`);
         }
-        setIsListening(false);
       };
 
       recognition.onend = () => {
@@ -369,19 +394,23 @@ export function useVoiceCommander(defaultStation: StationName = 'Saucier') {
     }
 
     return () => {
+      if (silenceTimeoutRef.current) clearTimeout(silenceTimeoutRef.current);
       if (recognitionRef.current) {
         try {
           recognitionRef.current.abort();
         } catch (_) {}
       }
     };
-  }, [defaultStation]);
+  }, [defaultStation, availableStations, processAccumulatedText]);
 
   const startListening = useCallback(() => {
     setErrorMessage(null);
     setTranscript('');
     setInterimTranscript('');
+    accumulatedTranscriptRef.current = '';
     setParsedCommand(null);
+
+    if (silenceTimeoutRef.current) clearTimeout(silenceTimeoutRef.current);
 
     if (!recognitionRef.current) {
       setErrorMessage('El reconocimiento de voz no está disponible en este navegador.');
@@ -391,7 +420,6 @@ export function useVoiceCommander(defaultStation: StationName = 'Saucier') {
     try {
       recognitionRef.current.start();
     } catch (err) {
-      // Si ya estaba escuchando, reiniciamos
       try {
         recognitionRef.current.stop();
         setTimeout(() => recognitionRef.current?.start(), 150);
@@ -402,18 +430,23 @@ export function useVoiceCommander(defaultStation: StationName = 'Saucier') {
   }, []);
 
   const stopListening = useCallback(() => {
+    if (silenceTimeoutRef.current) clearTimeout(silenceTimeoutRef.current);
     if (recognitionRef.current) {
       try {
         recognitionRef.current.stop();
       } catch (_) {}
     }
     setIsListening(false);
-  }, []);
+    // Procesar lo acumulado de inmediato al pulsar parar
+    processAccumulatedText();
+  }, [processAccumulatedText]);
 
   const resetCommand = useCallback(() => {
+    if (silenceTimeoutRef.current) clearTimeout(silenceTimeoutRef.current);
     setParsedCommand(null);
     setTranscript('');
     setInterimTranscript('');
+    accumulatedTranscriptRef.current = '';
   }, []);
 
   return {
@@ -426,6 +459,7 @@ export function useVoiceCommander(defaultStation: StationName = 'Saucier') {
     startListening,
     stopListening,
     resetCommand,
-    setParsedCommand
+    setParsedCommand,
+    processAccumulatedText
   };
 }

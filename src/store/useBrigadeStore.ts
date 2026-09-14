@@ -82,7 +82,10 @@ export interface NotaPostIt {
 
 export interface BrigadeState {
   turnoActual: TurnoData;
+  nombreRestaurante: string;
+  hasConfiguredOnboarding: boolean;
   partidas: string[];
+  coloresPartidas: Record<string, string>;
   kanbanTareas: Tarea[];
   comprasPendientes: Compra[];
   sugerenciasIA: SugerenciaIA[];
@@ -113,9 +116,18 @@ export interface BrigadeState {
   vaciarAgotados86: () => void;
 
   setTurnoActual: (turno: TurnoData) => void;
+  setNombreRestaurante: (nombre: string) => void;
+  finalizarOnboarding: (nombreRestaurante: string, partidas: string[], plantilla?: boolean) => void;
+  reiniciarOnboarding: () => void;
   resetearTurno: (nuevoServicio?: string, pax?: number) => void;
-  agregarPartida: (nombre: string) => void;
+  agregarPartida: (nombre: string, colorKey?: string) => void;
+  renombrarPartida: (nombreAntiguo: string, nombreNuevo: string) => void;
+  setColorPartida: (partida: string, colorKey: string) => void;
   eliminarPartida: (nombre: string) => void;
+  vaciarTodasLasPartidas: () => void;
+  cargarPlantillaClasica: () => void;
+  exportarConfiguracionJSON: () => string;
+  importarConfiguracionJSON: (jsonStr: string) => { success: boolean; error?: string };
   agregarTarea: (tarea: Tarea) => void;
   actualizarTarea: (id: string, cambios: Partial<Tarea>) => void;
   eliminarTarea: (id: string) => void;
@@ -183,7 +195,10 @@ export const useBrigadeStore = create<BrigadeState>((setStore, getStore) => ({
     comensales: 120,
     horaPase: '20:30',
   },
+  nombreRestaurante: 'Mi Cocina Pro',
+  hasConfiguredOnboarding: false,
   partidas: ['Saucier', 'Garde Manger', 'Pescados', 'Carnes'],
+  coloresPartidas: {},
   sugerenciasIA: [],
   analizandoIA: false,
   procesosHabituales: PROCESOS_HABITUALES_INICIALES,
@@ -414,10 +429,84 @@ export const useBrigadeStore = create<BrigadeState>((setStore, getStore) => ({
     set('brigade-sync-store', getStore());
   },
 
-  agregarPartida: (nombre) => {
+  setNombreRestaurante: (nombre) => {
     setStore((state) => {
-      if (state.partidas.includes(nombre)) return state;
-      const newState = { partidas: [...state.partidas, nombre] };
+      const newState = { nombreRestaurante: nombre };
+      set('brigade-sync-store', { ...state, ...newState });
+      return newState;
+    });
+  },
+
+  finalizarOnboarding: (nombreRestaurante, partidasElegidas, plantilla = false) => {
+    setStore((state) => {
+      let finalPartidas = partidasElegidas;
+      if (plantilla || finalPartidas.length === 0) {
+        finalPartidas = ['Saucier', 'Garde Manger', 'Pescados', 'Carnes'];
+      }
+      const newState = {
+        nombreRestaurante: nombreRestaurante.trim() || 'Mi Cocina Pro',
+        hasConfiguredOnboarding: true,
+        partidas: finalPartidas,
+        // Si eligió plantilla, mantenemos las tareas de demo, si eligió limpio, vaciamos tareas
+        kanbanTareas: plantilla ? state.kanbanTareas : []
+      };
+      set('brigade-sync-store', { ...state, ...newState });
+      return newState;
+    });
+  },
+
+  reiniciarOnboarding: () => {
+    setStore((state) => {
+      const newState = { hasConfiguredOnboarding: false };
+      set('brigade-sync-store', { ...state, ...newState });
+      return newState;
+    });
+  },
+
+  agregarPartida: (nombre, colorKey) => {
+    setStore((state) => {
+      const clean = nombre.trim();
+      if (!clean || state.partidas.includes(clean)) return state;
+      const newColores = { ...state.coloresPartidas };
+      if (colorKey) {
+        newColores[clean] = colorKey;
+      }
+      const newState = { 
+        partidas: [...state.partidas, clean],
+        coloresPartidas: newColores
+      };
+      set('brigade-sync-store', { ...state, ...newState });
+      return newState;
+    });
+  },
+
+  renombrarPartida: (nombreAntiguo, nombreNuevo) => {
+    setStore((state) => {
+      const cleanNuevo = nombreNuevo.trim();
+      if (!cleanNuevo || state.partidas.includes(cleanNuevo)) return state;
+      
+      const newPartidas = state.partidas.map(p => p === nombreAntiguo ? cleanNuevo : p);
+      const newTareas = state.kanbanTareas.map(t => t.partida === nombreAntiguo ? { ...t, partida: cleanNuevo } : t);
+      const newColores = { ...state.coloresPartidas };
+      if (newColores[nombreAntiguo]) {
+        newColores[cleanNuevo] = newColores[nombreAntiguo];
+        delete newColores[nombreAntiguo];
+      }
+
+      const newState = {
+        partidas: newPartidas,
+        kanbanTareas: newTareas,
+        coloresPartidas: newColores
+      };
+      set('brigade-sync-store', { ...state, ...newState });
+      return newState;
+    });
+  },
+
+  setColorPartida: (partida, colorKey) => {
+    setStore((state) => {
+      const newColores = { ...state.coloresPartidas, [partida]: colorKey };
+      const newState = { coloresPartidas: newColores };
       set('brigade-sync-store', { ...state, ...newState });
       return newState;
     });
@@ -425,13 +514,85 @@ export const useBrigadeStore = create<BrigadeState>((setStore, getStore) => ({
 
   eliminarPartida: (nombre) => {
     setStore((state) => {
+      const newColores = { ...state.coloresPartidas };
+      delete newColores[nombre];
       const newState = { 
         partidas: state.partidas.filter(p => p !== nombre),
-        kanbanTareas: state.kanbanTareas.filter(t => t.partida !== nombre) 
+        kanbanTareas: state.kanbanTareas.filter(t => t.partida !== nombre),
+        coloresPartidas: newColores
       };
       set('brigade-sync-store', { ...state, ...newState });
       return newState;
     });
+  },
+
+  vaciarTodasLasPartidas: () => {
+    setStore((state) => {
+      const newState = {
+        partidas: [],
+        kanbanTareas: [],
+        coloresPartidas: {},
+        hasConfiguredOnboarding: true
+      };
+      set('brigade-sync-store', { ...state, ...newState });
+      return newState;
+    });
+  },
+
+  cargarPlantillaClasica: () => {
+    setStore((state) => {
+      const clasicas = ['Saucier', 'Garde Manger', 'Pescados', 'Carnes'];
+      const newState = {
+        partidas: clasicas,
+        coloresPartidas: {
+          Saucier: 'amber',
+          'Garde Manger': 'emerald',
+          Pescados: 'sky',
+          Carnes: 'red'
+        },
+        hasConfiguredOnboarding: true
+      };
+      set('brigade-sync-store', { ...state, ...newState });
+      return newState;
+    });
+  },
+
+  exportarConfiguracionJSON: () => {
+    const state = getStore();
+    const backup = {
+      version: '1.0',
+      nombreRestaurante: state.nombreRestaurante,
+      partidas: state.partidas,
+      coloresPartidas: state.coloresPartidas,
+      procesosHabituales: state.procesosHabituales,
+      platosDelDia: state.platosDelDia,
+      exportDate: new Date().toISOString()
+    };
+    return JSON.stringify(backup, null, 2);
+  },
+
+  importarConfiguracionJSON: (jsonStr: string) => {
+    try {
+      const data = JSON.parse(jsonStr);
+      if (!data || !Array.isArray(data.partidas)) {
+        return { success: false, error: 'Formato inválido: falta la lista de partidas.' };
+      }
+      setStore((state) => {
+        const newState = {
+          nombreRestaurante: data.nombreRestaurante || state.nombreRestaurante,
+          partidas: data.partidas,
+          coloresPartidas: data.coloresPartidas || {},
+          procesosHabituales: Array.isArray(data.procesosHabituales) ? data.procesosHabituales : state.procesosHabituales,
+          platosDelDia: Array.isArray(data.platosDelDia) ? data.platosDelDia : state.platosDelDia,
+          hasConfiguredOnboarding: true
+        };
+        set('brigade-sync-store', { ...state, ...newState });
+        return newState;
+      });
+      return { success: true };
+    } catch (err: any) {
+      return { success: false, error: 'El archivo no contiene un JSON válido.' };
+    }
   },
 
   agregarTarea: (tarea) => {
@@ -492,10 +653,15 @@ export const useBrigadeStore = create<BrigadeState>((setStore, getStore) => ({
     try {
       const data = await get('brigade-sync-store');
       if (data) {
+        const hasOnboarding = data.hasConfiguredOnboarding === true;
         const mergedData = {
            ...data,
-           kanbanTareas: data.kanbanTareas?.length > 0 ? data.kanbanTareas : getStore().kanbanTareas,
-           partidas: data.partidas?.length > 0 ? data.partidas : getStore().partidas,
+           nombreRestaurante: data.nombreRestaurante || 'Mi Cocina Pro',
+           hasConfiguredOnboarding: hasOnboarding,
+           coloresPartidas: data.coloresPartidas ?? {},
+           // Si ya configuró su onboarding, se respeta estrictamente lo que guardó, aunque esté vacío
+           partidas: hasOnboarding ? (data.partidas ?? []) : (data.partidas?.length > 0 ? data.partidas : getStore().partidas),
+           kanbanTareas: hasOnboarding ? (data.kanbanTareas ?? []) : (data.kanbanTareas?.length > 0 ? data.kanbanTareas : getStore().kanbanTareas),
            temporizadores: data.temporizadores ?? getStore().temporizadores,
            agotados86: data.agotados86 ?? getStore().agotados86,
            modoServicio: data.modoServicio ?? false,

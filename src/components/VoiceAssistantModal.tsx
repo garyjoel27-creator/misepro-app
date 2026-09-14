@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { 
   Mic, 
   MicOff, 
@@ -11,7 +11,9 @@ import {
   Ban, 
   Timer as TimerIcon, 
   AlertCircle,
-  HelpCircle
+  HelpCircle,
+  Plus,
+  Minus
 } from 'lucide-react';
 import { useVoiceCommander, type ParsedVoiceCommand } from '../hooks/useVoiceCommander';
 import { useBrigadeStore } from '../store/useBrigadeStore';
@@ -25,6 +27,14 @@ interface VoiceAssistantModalProps {
 
 export function VoiceAssistantModal({ isOpen, onClose, currentStation = 'Saucier' }: VoiceAssistantModalProps) {
   const {
+    partidas,
+    agregarTarea,
+    agregarCompra,
+    marcarAgotado86,
+    crearTemporizador
+  } = useBrigadeStore();
+
+  const {
     isListening,
     isSupported,
     transcript,
@@ -34,14 +44,18 @@ export function VoiceAssistantModal({ isOpen, onClose, currentStation = 'Saucier
     startListening,
     stopListening,
     resetCommand
-  } = useVoiceCommander(currentStation);
+  } = useVoiceCommander(currentStation, partidas);
 
-  const {
-    agregarTarea,
-    agregarCompra,
-    marcarAgotado86,
-    crearTemporizador
-  } = useBrigadeStore();
+  // Comando editable localmente para corregir cualquier detalle antes de confirmar
+  const [editableCmd, setEditableCmd] = useState<ParsedVoiceCommand | null>(null);
+
+  useEffect(() => {
+    if (parsedCommand) {
+      setEditableCmd({ ...parsedCommand });
+    } else {
+      setEditableCmd(null);
+    }
+  }, [parsedCommand]);
 
   // Iniciar escucha automáticamente al abrir
   useEffect(() => {
@@ -66,8 +80,8 @@ export function VoiceAssistantModal({ isOpen, onClose, currentStation = 'Saucier
         const osc = ctx.createOscillator();
         const gain = ctx.createGain();
         osc.type = 'sine';
-        osc.frequency.setValueAtTime(587.33, ctx.currentTime); // D5
-        osc.frequency.setValueAtTime(880, ctx.currentTime + 0.08); // A5
+        osc.frequency.setValueAtTime(587.33, ctx.currentTime);
+        osc.frequency.setValueAtTime(880, ctx.currentTime + 0.08);
         gain.gain.setValueAtTime(0.15, ctx.currentTime);
         gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.35);
         osc.connect(gain);
@@ -82,56 +96,58 @@ export function VoiceAssistantModal({ isOpen, onClose, currentStation = 'Saucier
     }
   };
 
-  const handleConfirmCommand = (cmd: ParsedVoiceCommand) => {
+  const handleConfirmCommand = () => {
+    if (!editableCmd) return;
     playSuccessChime();
 
-    switch (cmd.tipo) {
+    const targetStation = editableCmd.partida || (partidas[0] || currentStation);
+
+    switch (editableCmd.tipo) {
       case 'tarea': {
         agregarTarea({
           id: crypto.randomUUID(),
-          nombre: cmd.nombre,
-          cantidad: cmd.cantidad || 1,
-          unidad: cmd.unidad || 'Kg',
-          prioridad: cmd.prioridad || 'Media',
+          nombre: editableCmd.nombre,
+          cantidad: editableCmd.cantidad || 1,
+          unidad: editableCmd.unidad || 'Kg',
+          prioridad: editableCmd.prioridad || 'Media',
           estado: 'Pendiente',
-          partida: cmd.partida || currentStation
+          partida: targetStation
         });
         break;
       }
       case 'compra': {
         agregarCompra({
           id: crypto.randomUUID(),
-          ingrediente: cmd.nombre,
-          cantidad: cmd.cantidad || 1,
-          categoria: cmd.categoria || 'Vegetales'
+          ingrediente: editableCmd.nombre,
+          cantidad: editableCmd.cantidad || 1,
+          categoria: editableCmd.categoria || 'Vegetales'
         });
         break;
       }
       case 'agotado': {
-        marcarAgotado86(cmd.nombre, cmd.partida || currentStation, cmd.motivo);
+        marcarAgotado86(editableCmd.nombre, targetStation, editableCmd.motivo);
         break;
       }
       case 'temporizador': {
-        crearTemporizador(cmd.nombre, cmd.partida || currentStation, cmd.minutos || 5);
+        crearTemporizador(editableCmd.nombre, targetStation, editableCmd.minutos || 5);
         break;
       }
       default: {
         agregarTarea({
           id: crypto.randomUUID(),
-          nombre: cmd.nombre,
+          nombre: editableCmd.nombre,
           cantidad: 1,
           unidad: 'Kg',
           prioridad: 'Media',
           estado: 'Pendiente',
-          partida: currentStation
+          partida: targetStation
         });
       }
     }
 
-    // Cerrar tras éxito
     setTimeout(() => {
       onClose();
-    }, 400);
+    }, 350);
   };
 
   return (
@@ -153,7 +169,7 @@ export function VoiceAssistantModal({ isOpen, onClose, currentStation = 'Saucier
                 COMANDO POR VOZ
               </h2>
               <p className="text-[11px] uppercase tracking-widest text-stone-400 font-semibold">
-                Control manos libres para cocina
+                Control manos libres con tiempo de pausa
               </p>
             </div>
           </div>
@@ -176,9 +192,9 @@ export function VoiceAssistantModal({ isOpen, onClose, currentStation = 'Saucier
             </div>
           </div>
         ) : (
-          <div className="py-5 flex flex-col items-center">
+          <div className="py-4 flex flex-col items-center">
             {/* Mic Pulse Center */}
-            <div className="relative my-3 flex items-center justify-center">
+            <div className="relative my-2 flex items-center justify-center">
               {isListening && (
                 <>
                   <div className="absolute w-28 h-28 rounded-full bg-amber-500/20 animate-ping" />
@@ -193,6 +209,7 @@ export function VoiceAssistantModal({ isOpen, onClose, currentStation = 'Saucier
                     ? 'bg-gradient-to-tr from-amber-500 to-amber-400 text-stone-950 ring-8 ring-amber-500/20 scale-105'
                     : 'bg-stone-800 hover:bg-stone-700 text-stone-300 ring-4 ring-stone-700/50'
                 }`}
+                title={isListening ? "Toca para pausar o procesar" : "Toca para reanudar escucha"}
               >
                 {isListening ? (
                   <Mic className="w-9 h-9 animate-bounce" />
@@ -202,12 +219,14 @@ export function VoiceAssistantModal({ isOpen, onClose, currentStation = 'Saucier
               </button>
             </div>
 
-            <span className="text-xs font-bold uppercase tracking-widest text-amber-300 mt-2">
-              {isListening ? '🎙️ Escuchando a la brigada...' : 'Pausa • Toca para hablar'}
-            </span>
+            <div className="flex items-center gap-2 mt-2">
+              <span className="text-xs font-bold uppercase tracking-widest text-amber-300">
+                {isListening ? '🎙️ Escuchando... puedes pausar y pensar' : 'Pausado • Toca para hablar'}
+              </span>
+            </div>
 
-            {/* Transcription Box */}
-            <div className="w-full mt-4 p-4 rounded-2xl bg-stone-900/80 border border-stone-800 text-center min-h-[70px] flex items-center justify-center">
+            {/* Transcription Box with Real-time Speech */}
+            <div className="w-full mt-3 p-3.5 rounded-2xl bg-stone-900/80 border border-stone-800 text-center min-h-[60px] flex flex-col items-center justify-center gap-1">
               {transcript || interimTranscript ? (
                 <p className="text-sm font-medium text-stone-200">
                   <span className="font-bold text-white">"{transcript}"</span>
@@ -217,8 +236,18 @@ export function VoiceAssistantModal({ isOpen, onClose, currentStation = 'Saucier
                 </p>
               ) : (
                 <p className="text-xs text-stone-500 italic">
-                  Habla ahora: "Agregar 5 kilos de cebolla a Garde Manger", "Comprar nata", "Fuera de carta merluza"...
+                  Habla con calma. Puedes pensar entre palabras. Ejemplo: "Agregar 5 kilos de cebolla a {partidas[0] || 'la cocina'}"
                 </p>
+              )}
+
+              {/* Action to force process right now without waiting */}
+              {isListening && (transcript || interimTranscript) && (
+                <button
+                  onClick={stopListening}
+                  className="mt-1 text-[11px] font-bold text-amber-400 hover:text-amber-300 underline cursor-pointer"
+                >
+                  ⚡ He terminado, interpretar ahora
+                </button>
               )}
             </div>
 
@@ -229,69 +258,162 @@ export function VoiceAssistantModal({ isOpen, onClose, currentStation = 'Saucier
               </div>
             )}
 
-            {/* 1-Tap Confirmation Card */}
-            {parsedCommand && (
-              <div className="w-full mt-5 p-4 rounded-2xl bg-gradient-to-br from-stone-900 via-stone-800 to-stone-900 border-2 border-amber-500/60 shadow-[0_10px_30px_rgba(0,0,0,0.5)] animate-in zoom-in-95 duration-200">
+            {/* 1-Tap & Editable Confirmation Card */}
+            {editableCmd && (
+              <div className="w-full mt-4 p-4 rounded-3xl bg-gradient-to-br from-stone-900 via-stone-850 to-stone-900 border-2 border-amber-500/60 shadow-[0_10px_30px_rgba(0,0,0,0.5)] animate-in zoom-in-95 duration-200">
                 <div className="flex items-center justify-between pb-2 mb-3 border-b border-white/10">
                   <span className="text-[11px] font-black uppercase tracking-widest text-amber-400 flex items-center gap-1.5">
-                    {parsedCommand.tipo === 'tarea' && <Flame className="w-4 h-4" />}
-                    {parsedCommand.tipo === 'compra' && <ShoppingBag className="w-4 h-4" />}
-                    {parsedCommand.tipo === 'agotado' && <Ban className="w-4 h-4" />}
-                    {parsedCommand.tipo === 'temporizador' && <TimerIcon className="w-4 h-4" />}
-                    {parsedCommand.tipo === 'tarea' && 'Mise en Place Detectada'}
-                    {parsedCommand.tipo === 'compra' && 'Lista de Compras'}
-                    {parsedCommand.tipo === 'agotado' && 'Agotado (Fuera de Carta)'}
-                    {parsedCommand.tipo === 'temporizador' && 'Temporizador de Pase'}
+                    {editableCmd.tipo === 'tarea' && <Flame className="w-4 h-4" />}
+                    {editableCmd.tipo === 'compra' && <ShoppingBag className="w-4 h-4" />}
+                    {editableCmd.tipo === 'agotado' && <Ban className="w-4 h-4" />}
+                    {editableCmd.tipo === 'temporizador' && <TimerIcon className="w-4 h-4" />}
+                    {editableCmd.tipo === 'tarea' && 'Mise en Place Detectada'}
+                    {editableCmd.tipo === 'compra' && 'Lista de Compras'}
+                    {editableCmd.tipo === 'agotado' && 'Agotado (Fuera de Carta)'}
+                    {editableCmd.tipo === 'temporizador' && 'Temporizador de Pase'}
                   </span>
                   <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
-                    {Math.round(parsedCommand.confianza * 100)}% de acierto
+                    Editable • Revisa o Ajusta
                   </span>
                 </div>
 
-                <div className="space-y-2 mb-4">
-                  <div className="flex items-start justify-between gap-2">
-                    <span className="text-base font-black text-white capitalize leading-tight">
-                      {parsedCommand.nombre}
-                    </span>
-                    {parsedCommand.cantidad !== undefined && (
-                      <span className="text-sm font-black text-amber-400 shrink-0 bg-amber-500/10 border border-amber-500/30 px-2 py-0.5 rounded-lg">
-                        {parsedCommand.cantidad} {parsedCommand.unidad}
-                      </span>
-                    )}
+                {/* Editable Fields */}
+                <div className="space-y-3 mb-4">
+                  {/* Nombre editable */}
+                  <div>
+                    <label className="text-[10px] uppercase font-bold text-stone-400 tracking-wider block mb-1">
+                      Elaboración / Ítem:
+                    </label>
+                    <input
+                      type="text"
+                      value={editableCmd.nombre}
+                      onChange={(e) => setEditableCmd({ ...editableCmd, nombre: e.target.value })}
+                      className="w-full bg-stone-950 border border-stone-700 rounded-xl px-3 py-2 text-sm font-black text-white focus:outline-none focus:ring-2 focus:ring-amber-500"
+                    />
                   </div>
 
-                  <div className="flex flex-wrap items-center gap-2 pt-1 text-xs">
-                    {parsedCommand.partida && (
-                      <span className="font-bold px-2.5 py-1 rounded-lg bg-stone-800 text-stone-200 border border-stone-700 flex items-center gap-1">
-                        Partida: <strong className="text-amber-400">{parsedCommand.partida}</strong>
+                  {/* Cantidad y Unidad (para tareas y compras) */}
+                  {(editableCmd.tipo === 'tarea' || editableCmd.tipo === 'compra') && (
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="text-[10px] uppercase font-bold text-stone-400 tracking-wider block mb-1">
+                          Cantidad:
+                        </label>
+                        <div className="flex items-center gap-1 bg-stone-950 border border-stone-700 rounded-xl p-1">
+                          <button
+                            onClick={() => setEditableCmd({ ...editableCmd, cantidad: Math.max(0.5, (editableCmd.cantidad || 1) - 1) })}
+                            className="w-8 h-8 rounded-lg bg-stone-800 hover:bg-stone-700 flex items-center justify-center text-white cursor-pointer"
+                          >
+                            <Minus className="w-3.5 h-3.5" />
+                          </button>
+                          <input
+                            type="number"
+                            step="0.5"
+                            value={editableCmd.cantidad || 1}
+                            onChange={(e) => setEditableCmd({ ...editableCmd, cantidad: parseFloat(e.target.value) || 1 })}
+                            className="flex-1 bg-transparent text-center font-black text-sm text-amber-400 focus:outline-none"
+                          />
+                          <button
+                            onClick={() => setEditableCmd({ ...editableCmd, cantidad: (editableCmd.cantidad || 1) + 1 })}
+                            className="w-8 h-8 rounded-lg bg-stone-800 hover:bg-stone-700 flex items-center justify-center text-white cursor-pointer"
+                          >
+                            <Plus className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="text-[10px] uppercase font-bold text-stone-400 tracking-wider block mb-1">
+                          Unidad:
+                        </label>
+                        <select
+                          value={editableCmd.unidad || 'Kg'}
+                          onChange={(e) => setEditableCmd({ ...editableCmd, unidad: e.target.value })}
+                          className="w-full h-10 bg-stone-950 border border-stone-700 rounded-xl px-2 text-xs font-bold text-white focus:outline-none focus:ring-2 focus:ring-amber-500"
+                        >
+                          <option value="Kg">Kg</option>
+                          <option value="Litros">Litros</option>
+                          <option value="Gramos">Gramos</option>
+                          <option value="Unidades">Unidades</option>
+                        </select>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Minutos (para temporizadores) */}
+                  {editableCmd.tipo === 'temporizador' && (
+                    <div>
+                      <label className="text-[10px] uppercase font-bold text-stone-400 tracking-wider block mb-1">
+                        Minutos de Cocción:
+                      </label>
+                      <div className="flex items-center gap-1 bg-stone-950 border border-stone-700 rounded-xl p-1 max-w-[200px]">
+                        <button
+                          onClick={() => setEditableCmd({ ...editableCmd, minutos: Math.max(1, (editableCmd.minutos || 5) - 1) })}
+                          className="w-8 h-8 rounded-lg bg-stone-800 hover:bg-stone-700 flex items-center justify-center text-white cursor-pointer"
+                        >
+                          <Minus className="w-3.5 h-3.5" />
+                        </button>
+                        <span className="flex-1 text-center font-black text-sm text-amber-400">
+                          {editableCmd.minutos} min
+                        </span>
+                        <button
+                          onClick={() => setEditableCmd({ ...editableCmd, minutos: (editableCmd.minutos || 5) + 1 })}
+                          className="w-8 h-8 rounded-lg bg-stone-800 hover:bg-stone-700 flex items-center justify-center text-white cursor-pointer"
+                        >
+                          <Plus className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Selector de Partida personalizada */}
+                  {partidas.length > 0 && (editableCmd.tipo === 'tarea' || editableCmd.tipo === 'agotado' || editableCmd.tipo === 'temporizador') && (
+                    <div>
+                      <label className="text-[10px] uppercase font-bold text-stone-400 tracking-wider block mb-1">
+                        Partida Asignada:
+                      </label>
+                      <select
+                        value={editableCmd.partida || partidas[0]}
+                        onChange={(e) => setEditableCmd({ ...editableCmd, partida: e.target.value })}
+                        className="w-full h-10 bg-stone-950 border border-stone-700 rounded-xl px-3 text-xs font-bold text-white focus:outline-none focus:ring-2 focus:ring-amber-500"
+                      >
+                        {partidas.map(p => (
+                          <option key={p} value={p}>{p}</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+
+                  {/* Prioridad (para tareas) */}
+                  {editableCmd.tipo === 'tarea' && (
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] uppercase font-bold text-stone-400 tracking-wider">
+                        Prioridad:
                       </span>
-                    )}
-                    {parsedCommand.minutos !== undefined && (
-                      <span className="font-bold px-2.5 py-1 rounded-lg bg-stone-800 text-amber-300 border border-amber-500/30">
-                        ⏱️ {parsedCommand.minutos} minutos
-                      </span>
-                    )}
-                    {parsedCommand.prioridad && (
-                      <span className={`font-bold px-2.5 py-1 rounded-lg border ${
-                        parsedCommand.prioridad === 'Critica' 
-                          ? 'bg-red-500/20 text-red-400 border-red-500/30' 
-                          : 'bg-stone-800 text-stone-300 border-stone-700'
-                      }`}>
-                        Prioridad: {parsedCommand.prioridad}
-                      </span>
-                    )}
-                    {parsedCommand.categoria && (
-                      <span className="font-bold px-2.5 py-1 rounded-lg bg-stone-800 text-stone-300 border border-stone-700">
-                        Cat: {parsedCommand.categoria}
-                      </span>
-                    )}
-                  </div>
+                      {(['Baja', 'Media', 'Critica'] as const).map(prio => (
+                        <button
+                          key={prio}
+                          type="button"
+                          onClick={() => setEditableCmd({ ...editableCmd, prioridad: prio })}
+                          className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                            editableCmd.prioridad === prio
+                              ? prio === 'Critica' 
+                                ? 'bg-red-500 text-white' 
+                                : 'bg-amber-500 text-stone-950'
+                              : 'bg-stone-800 text-stone-400 hover:text-white'
+                          }`}
+                        >
+                          {prio}
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
 
-                {/* 1-Tap Huge Touch Buttons */}
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-2">
+                {/* Confirm and Retry Buttons */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-2 border-t border-white/10">
                   <button
-                    onClick={() => handleConfirmCommand(parsedCommand)}
+                    onClick={handleConfirmCommand}
                     className="sm:col-span-2 min-h-[52px] rounded-2xl bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400 text-white font-black text-sm uppercase tracking-wider flex items-center justify-center gap-2 cursor-pointer shadow-lg shadow-emerald-950/50 transition-all active:scale-98"
                   >
                     <Check className="w-5 h-5 stroke-[2.5]" />
@@ -313,15 +435,18 @@ export function VoiceAssistantModal({ isOpen, onClose, currentStation = 'Saucier
             )}
 
             {/* Quick Cooking Voice Cheatsheet */}
-            <div className="w-full mt-6 pt-4 border-t border-stone-800/80">
-              <div className="flex items-center gap-1.5 text-xs font-bold text-stone-400 mb-2.5">
+            <div className="w-full mt-5 pt-4 border-t border-stone-800/80">
+              <div className="flex items-center gap-1.5 text-xs font-bold text-stone-400 mb-2">
                 <HelpCircle className="w-3.5 h-3.5 text-amber-500" />
-                <span>EJEMPLOS OPERATIVOS POR VOZ:</span>
+                <span>EJEMPLOS CON TIEMPO DE PAUSA:</span>
               </div>
+              <p className="text-[11px] text-stone-500 mb-2">
+                Puedes hablar despacio. Si te equivocas, la tarjeta te permite corregir el número o la partida antes de confirmar.
+              </p>
               <ul className="space-y-1.5 text-[11px] text-stone-400">
                 <li className="flex items-center gap-2">
                   <span className="text-amber-400">📋</span>
-                  <span>"Agregar <strong>5 kilos de cebolla picada a Garde Manger</strong>"</span>
+                  <span>"Agregar <strong>5 kilos de cebolla picada a {partidas[0] || 'Garde Manger'}</strong>"</span>
                 </li>
                 <li className="flex items-center gap-2">
                   <span className="text-amber-400">🛒</span>
@@ -329,11 +454,11 @@ export function VoiceAssistantModal({ isOpen, onClose, currentStation = 'Saucier
                 </li>
                 <li className="flex items-center gap-2">
                   <span className="text-amber-400">🛑</span>
-                  <span>"Marcar <strong>fuera de carta rodaballo salvaje</strong>"</span>
+                  <span>"Marcar <strong>fuera de carta rodaballo</strong>"</span>
                 </li>
                 <li className="flex items-center gap-2">
                   <span className="text-amber-400">⏱️</span>
-                  <span>"Temporizador <strong>15 minutos arroz meloso</strong>"</span>
+                  <span>"Temporizador <strong>15 minutos horno</strong>"</span>
                 </li>
               </ul>
             </div>

@@ -33,7 +33,8 @@ export function KanbanBoard({ partida, masterMode = false }: KanbanBoardProps) {
   const kanbanTareas = useBrigadeStore(state => state.kanbanTareas);
   const moverTarea = useBrigadeStore(state => state.moverTarea);
   const limpiarCompletadas = useBrigadeStore(state => state.limpiarCompletadas);
-  const stationConfig = getStationConfig(partida);
+  const coloresPartidas = useBrigadeStore(state => state.coloresPartidas);
+  const stationConfig = getStationConfig(partida, coloresPartidas[partida]);
   
   const [isDesktop, setIsDesktop] = useState(() => {
     if (typeof window !== 'undefined') {
