@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import type { StationName } from '../types/stations';
 
-export type VoiceIntentType = 'tarea' | 'compra' | 'agotado' | 'temporizador' | 'desconocido';
+export type VoiceIntentType = 'tarea' | 'compra' | 'agotado' | 'temporizador';
 
 export interface ParsedVoiceCommand {
   tipo: VoiceIntentType;
@@ -27,18 +27,65 @@ interface SpeechRecognitionEvent extends Event {
   results: SpeechRecognitionResultList;
 }
 
+/**
+ * Elimina repeticiones de palabras consecutivas o frases duplicadas generadas por el motor de voz
+ */
+function deduplicateText(text: string): string {
+  if (!text) return '';
+  let words = text.trim().split(/\s+/);
+  if (words.length <= 1) return text.trim();
+
+  // 1. Eliminar palabras consecutivas idénticas ("cebolla cebolla" -> "cebolla")
+  const cleanWords: string[] = [];
+  for (let i = 0; i < words.length; i++) {
+    if (i === 0 || words[i].toLowerCase() !== words[i - 1].toLowerCase()) {
+      cleanWords.push(words[i]);
+    }
+  }
+  words = cleanWords;
+
+  // 2. Eliminar frases duplicadas consecutivas de longitud k (ej: "5 kilos de patatas 5 kilos de patatas")
+  let changed = true;
+  let passes = 0;
+  while (changed && passes < 6) {
+    passes++;
+    changed = false;
+    const maxK = Math.floor(words.length / 2);
+    for (let k = maxK; k >= 2; k--) {
+      for (let i = 0; i <= words.length - 2 * k; i++) {
+        const slice1 = words.slice(i, i + k).map(w => w.toLowerCase()).join(' ');
+        const slice2 = words.slice(i + k, i + 2 * k).map(w => w.toLowerCase()).join(' ');
+        if (slice1 === slice2) {
+          words.splice(i + k, k);
+          changed = true;
+          break;
+        }
+      }
+      if (changed) break;
+    }
+  }
+
+  return words.join(' ');
+}
+
 export function parseVoiceCommand(
-  text: string, 
+  rawInput: string, 
   defaultStation: StationName = 'Saucier',
   availableStations: string[] = []
 ): ParsedVoiceCommand {
-  const clean = text.trim().toLowerCase();
-  if (!clean) {
+  const text = deduplicateText(rawInput);
+  const clean = text.toLowerCase();
+  
+  if (!clean || clean.length < 2) {
     return {
-      tipo: 'desconocido',
-      rawText: '',
+      tipo: 'tarea',
+      rawText: text,
       nombre: '',
-      confianza: 0
+      cantidad: 1,
+      unidad: 'Kg',
+      partida: availableStations[0] || defaultStation,
+      prioridad: 'Media',
+      confianza: 0.1
     };
   }
   
@@ -97,13 +144,13 @@ export function parseVoiceCommand(
       .replace(/agotado/gi, '')
       .replace(/se acab[oó]/gi, '')
       .replace(/no queda/gi, '')
-      .replace(/el /gi, '')
-      .replace(/la /gi, '')
-      .replace(/los /gi, '')
-      .replace(/las /gi, '')
+      .replace(/^el /gi, '')
+      .replace(/^la /gi, '')
+      .replace(/^los /gi, '')
+      .replace(/^las /gi, '')
       .trim();
 
-    if (!nombre) nombre = 'Plato o ingrediente';
+    if (!nombre) nombre = 'Plato Agotado';
     nombre = nombre.charAt(0).toUpperCase() + nombre.slice(1);
 
     return {
@@ -112,7 +159,7 @@ export function parseVoiceCommand(
       nombre,
       partida: detectPartida(clean, availableStations) || defaultStation,
       motivo: 'Agotado durante el servicio (Voz)',
-      confianza: 0.9
+      confianza: 0.92
     };
   }
 
@@ -151,7 +198,7 @@ export function parseVoiceCommand(
       cantidad: cantidad || 1,
       unidad: unidad || 'Kg',
       categoria,
-      confianza: 0.88
+      confianza: 0.9
     };
   }
 
@@ -177,7 +224,6 @@ export function parseVoiceCommand(
     .replace(/urgente/gi, '')
     .replace(/^de /gi, '');
 
-  // Quitar el nombre de la partida si se mencionó explícitamente
   if (partida) {
     const regPartida = new RegExp(`(a |en )?${partida}`, 'gi');
     nombre = nombre.replace(regPartida, '');
@@ -202,19 +248,17 @@ export function parseVoiceCommand(
     unidad: unidad || 'Kg',
     partida,
     prioridad,
-    confianza: clean.length > 3 ? 0.92 : 0.4
+    confianza: clean.length > 3 ? 0.94 : 0.6
   };
 }
 
 function detectPartida(text: string, availableStations: string[] = []): StationName | null {
-  // 1. Comparar primero contra las partidas personalizadas reales del usuario
   for (const st of availableStations) {
     if (text.includes(st.toLowerCase())) {
       return st;
     }
   }
 
-  // 2. Mapeo clásico de respaldo
   if (text.includes('saucier') || text.includes('salsa') || text.includes('fondo') || text.includes('caldo')) {
     return availableStations.find(s => s.toLowerCase() === 'saucier') || 'Saucier';
   }
@@ -305,16 +349,6 @@ export function useVoiceCommander(defaultStation: StationName = 'Saucier', avail
 
   const recognitionRef = useRef<any>(null);
   const silenceTimeoutRef = useRef<any>(null);
-  const accumulatedTranscriptRef = useRef<string>('');
-
-  const processAccumulatedText = useCallback(() => {
-    const fullText = accumulatedTranscriptRef.current.trim();
-    if (fullText) {
-      setTranscript(fullText);
-      const parsed = parseVoiceCommand(fullText, defaultStation, availableStations);
-      setParsedCommand(parsed);
-    }
-  }, [defaultStation, availableStations]);
 
   useEffect(() => {
     const SpeechRecognition = 
@@ -328,7 +362,6 @@ export function useVoiceCommander(defaultStation: StationName = 'Saucier', avail
 
     try {
       const recognition = new SpeechRecognition();
-      // continuous = true permite que el cocinero hable con pausas sin que el micro se apague
       recognition.continuous = true;
       recognition.interimResults = true;
       recognition.lang = 'es-ES';
@@ -339,47 +372,57 @@ export function useVoiceCommander(defaultStation: StationName = 'Saucier', avail
       };
 
       recognition.onresult = (event: SpeechRecognitionEvent) => {
-        let interim = '';
-        let finalChunk = '';
+        let finalStr = '';
+        let interimStr = '';
 
-        for (let i = event.resultIndex; i < event.results.length; ++i) {
+        // Recorrer SIEMPRE desde 0 para evitar duplicaciones acumuladas
+        for (let i = 0; i < event.results.length; ++i) {
           const res = event.results[i];
           if (res.isFinal) {
-            finalChunk += res[0].transcript + ' ';
+            finalStr += res[0].transcript + ' ';
           } else {
-            interim += res[0].transcript;
+            interimStr += res[0].transcript;
           }
         }
 
-        if (finalChunk) {
-          accumulatedTranscriptRef.current += finalChunk;
-          setTranscript(accumulatedTranscriptRef.current);
+        const cleanFinal = deduplicateText(finalStr.trim());
+        setTranscript(cleanFinal);
+        setInterimTranscript(interimStr);
+
+        const currentCombined = deduplicateText((cleanFinal + ' ' + interimStr).trim());
+        
+        // Interpretar en vivo si hay al menos 3 caracteres
+        if (currentCombined.length >= 3) {
+          const liveParsed = parseVoiceCommand(currentCombined, defaultStation, availableStations);
+          setParsedCommand(liveParsed);
         }
 
-        if (interim) {
-          setInterimTranscript(interim);
-        } else {
-          setInterimTranscript('');
-        }
-
-        // Buffer inteligente de silencio: da 3.2 segundos de silencio antes de auto-procesar
         if (silenceTimeoutRef.current) {
           clearTimeout(silenceTimeoutRef.current);
         }
 
+        // Buffer de silencio: tras 2.2s sin nuevas palabras, consolidar
         silenceTimeoutRef.current = setTimeout(() => {
-          processAccumulatedText();
-        }, 3200);
+          if (cleanFinal || interimStr) {
+            const finalFull = deduplicateText((cleanFinal + ' ' + interimStr).trim());
+            if (finalFull) {
+              setTranscript(finalFull);
+              setInterimTranscript('');
+              const parsed = parseVoiceCommand(finalFull, defaultStation, availableStations);
+              setParsedCommand(parsed);
+            }
+          }
+        }, 2200);
       };
 
       recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
         console.warn('Speech recognition error', event.error);
         if (event.error === 'not-allowed') {
-          setErrorMessage('Permiso de micrófono denegado. Permite el acceso para usar la voz.');
+          setErrorMessage('Permiso de micrófono denegado. Permite el acceso en los ajustes de tu navegador.');
         } else if (event.error === 'no-speech') {
-          // No emitir error ruidoso en no-speech para dar tiempo al usuario a pensar
+          // Ignorar no-speech para no interrumpir al usuario mientras piensa
         } else {
-          setErrorMessage(`Aviso de voz: ${event.error}`);
+          setErrorMessage(`Aviso de micrófono: ${event.error}`);
         }
       };
 
@@ -401,13 +444,12 @@ export function useVoiceCommander(defaultStation: StationName = 'Saucier', avail
         } catch (_) {}
       }
     };
-  }, [defaultStation, availableStations, processAccumulatedText]);
+  }, [defaultStation, availableStations]);
 
   const startListening = useCallback(() => {
     setErrorMessage(null);
     setTranscript('');
     setInterimTranscript('');
-    accumulatedTranscriptRef.current = '';
     setParsedCommand(null);
 
     if (silenceTimeoutRef.current) clearTimeout(silenceTimeoutRef.current);
@@ -437,17 +479,33 @@ export function useVoiceCommander(defaultStation: StationName = 'Saucier', avail
       } catch (_) {}
     }
     setIsListening(false);
-    // Procesar lo acumulado de inmediato al pulsar parar
-    processAccumulatedText();
-  }, [processAccumulatedText]);
+  }, []);
 
   const resetCommand = useCallback(() => {
     if (silenceTimeoutRef.current) clearTimeout(silenceTimeoutRef.current);
     setParsedCommand(null);
     setTranscript('');
     setInterimTranscript('');
-    accumulatedTranscriptRef.current = '';
   }, []);
+
+  const forceParseNow = useCallback(() => {
+    const full = deduplicateText((transcript + ' ' + interimTranscript).trim());
+    if (full) {
+      setTranscript(full);
+      setInterimTranscript('');
+      const parsed = parseVoiceCommand(full, defaultStation, availableStations);
+      setParsedCommand(parsed);
+    }
+  }, [transcript, interimTranscript, defaultStation, availableStations]);
+
+  const applyCustomText = useCallback((customText: string) => {
+    if (silenceTimeoutRef.current) clearTimeout(silenceTimeoutRef.current);
+    const clean = deduplicateText(customText.trim());
+    setTranscript(clean);
+    setInterimTranscript('');
+    const parsed = parseVoiceCommand(clean, defaultStation, availableStations);
+    setParsedCommand(parsed);
+  }, [defaultStation, availableStations]);
 
   return {
     isListening,
@@ -460,6 +518,7 @@ export function useVoiceCommander(defaultStation: StationName = 'Saucier', avail
     stopListening,
     resetCommand,
     setParsedCommand,
-    processAccumulatedText
+    forceParseNow,
+    applyCustomText
   };
 }
