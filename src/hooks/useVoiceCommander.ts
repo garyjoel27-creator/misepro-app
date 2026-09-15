@@ -30,7 +30,7 @@ interface SpeechRecognitionEvent extends Event {
 /**
  * Elimina repeticiones de palabras consecutivas o frases duplicadas generadas por el motor de voz
  */
-function deduplicateText(text: string): string {
+export function deduplicateText(text: string): string {
   if (!text) return '';
   let words = text.trim().split(/\s+/);
   if (words.length <= 1) return text.trim();
@@ -44,10 +44,10 @@ function deduplicateText(text: string): string {
   }
   words = cleanWords;
 
-  // 2. Eliminar frases duplicadas consecutivas de longitud k (ej: "5 kilos de patatas 5 kilos de patatas")
+  // 2. Eliminar frases duplicadas consecutivas de longitud k (ej: "cortar cebolla cortar cebolla")
   let changed = true;
   let passes = 0;
-  while (changed && passes < 6) {
+  while (changed && passes < 10) {
     passes++;
     changed = false;
     const maxK = Math.floor(words.length / 2);
@@ -66,6 +66,98 @@ function deduplicateText(text: string): string {
   }
 
   return words.join(' ');
+}
+
+/**
+ * Une los resultados emitidos por Web Speech API resolviendo el bug de acumulación de Chrome en Android,
+ * los solapamientos de palabras y las emisiones idénticas repetidas.
+ */
+export function mergeTranscriptResults(results: string[]): string {
+  if (!results || results.length === 0) return '';
+  let merged = '';
+
+  for (const raw of results) {
+    const text = (raw || '').trim();
+    if (!text) continue;
+
+    if (!merged) {
+      merged = text;
+      continue;
+    }
+
+    const mergedLower = merged.toLowerCase();
+    const textLower = text.toLowerCase();
+
+    // 1. Emisiones idénticas emitidas por Chrome Android
+    if (mergedLower === textLower) continue;
+
+    // 2. Modo acumulativo de Android: la nueva emisión contiene todo lo anterior y algo más
+    if (textLower.startsWith(mergedLower)) {
+      merged = text;
+      continue;
+    }
+
+    // 3. Si la nueva emisión ya está contenida al final de lo acumulado
+    if (mergedLower.endsWith(textLower)) continue;
+
+    // 4. Comprobación de solapamiento de palabras en la costura
+    const mergedWords = merged.split(/\s+/);
+    const textWords = text.split(/\s+/);
+    let maxOverlap = 0;
+
+    const maxCheck = Math.min(mergedWords.length, textWords.length);
+    for (let k = maxCheck; k >= 1; k--) {
+      const endSlice = mergedWords.slice(mergedWords.length - k).map(w => w.toLowerCase()).join(' ');
+      const startSlice = textWords.slice(0, k).map(w => w.toLowerCase()).join(' ');
+      if (endSlice === startSlice) {
+        maxOverlap = k;
+        break;
+      }
+    }
+
+    if (maxOverlap > 0) {
+      const newPart = textWords.slice(maxOverlap).join(' ');
+      if (newPart) {
+        merged = merged + ' ' + newPart;
+      }
+    } else {
+      merged = merged + ' ' + text;
+    }
+  }
+
+  return deduplicateText(merged.trim());
+}
+
+/**
+ * Extrae únicamente las palabras nuevas de la transcripción provisional (interim)
+ * que aún no han sido integradas en la transcripción definitiva (final).
+ */
+export function extractInterimDelta(finalText: string, interimText: string): string {
+  if (!interimText) return '';
+  const f = finalText.trim().toLowerCase();
+  const i = interimText.trim().toLowerCase();
+
+  if (!f) return interimText.trim();
+  if (f === i || f.endsWith(i)) return '';
+  if (i.startsWith(f)) {
+    return interimText.trim().slice(finalText.trim().length).trim();
+  }
+
+  const fWords = f.split(/\s+/);
+  const iWords = i.split(/\s+/);
+  let overlap = 0;
+  for (let k = Math.min(fWords.length, iWords.length); k >= 1; k--) {
+    if (fWords.slice(-k).join(' ') === iWords.slice(0, k).join(' ')) {
+      overlap = k;
+      break;
+    }
+  }
+
+  if (overlap > 0) {
+    return interimText.trim().split(/\s+/).slice(overlap).join(' ');
+  }
+
+  return interimText.trim();
 }
 
 export function parseVoiceCommand(
@@ -112,6 +204,7 @@ export function parseVoiceCommand(
       .replace(/av[ií]same en/gi, '')
       .trim();
       
+    nombre = deduplicateText(nombre);
     if (!nombre) nombre = 'Cocción ' + minutos + ' min';
     nombre = nombre.charAt(0).toUpperCase() + nombre.slice(1);
 
@@ -150,6 +243,7 @@ export function parseVoiceCommand(
       .replace(/^las /gi, '')
       .trim();
 
+    nombre = deduplicateText(nombre);
     if (!nombre) nombre = 'Plato Agotado';
     nombre = nombre.charAt(0).toUpperCase() + nombre.slice(1);
 
@@ -186,6 +280,7 @@ export function parseVoiceCommand(
       .replace(/^de /gi, '')
       .trim();
 
+    nombre = deduplicateText(nombre);
     if (!nombre) nombre = 'Ingrediente';
     nombre = nombre.charAt(0).toUpperCase() + nombre.slice(1);
 
@@ -229,7 +324,7 @@ export function parseVoiceCommand(
     nombre = nombre.replace(regPartida, '');
   }
 
-  nombre = nombre.trim();
+  nombre = deduplicateText(nombre.trim());
   if (!nombre) nombre = clean;
   nombre = nombre.charAt(0).toUpperCase() + nombre.slice(1);
 
@@ -323,9 +418,11 @@ function extractQuantityAndUnit(text: string): { cantidad: number; unidad: strin
 function deduceCategory(name: string): 'Vegetales' | 'Proteinas' | 'Lacteos/Secos' {
   const n = name.toLowerCase();
   if (
-    n.includes('carne') || n.includes('solomillo') || n.includes('pescado') || 
-    n.includes('lubina') || n.includes('merluza') || n.includes('pollo') || 
-    n.includes('ternera') || n.includes('cerdo') || n.includes('atun') || n.includes('atún')
+    n.includes('carne') || n.includes('pescado') || n.includes('pollo') || 
+    n.includes('solomillo') || n.includes('ternera') || n.includes('cerdo') || 
+    n.includes('atun') || n.includes('atún') || n.includes('merluza') || 
+    n.includes('gambas') || n.includes('marisco') || n.includes('pulpo') ||
+    n.includes('pato') || n.includes('lomo')
   ) {
     return 'Proteinas';
   }
@@ -372,27 +469,34 @@ export function useVoiceCommander(defaultStation: StationName = 'Saucier', avail
       };
 
       recognition.onresult = (event: SpeechRecognitionEvent) => {
-        let finalStr = '';
-        let interimStr = '';
+        const finalResults: string[] = [];
+        const interimResults: string[] = [];
 
-        // Recorrer SIEMPRE desde 0 para evitar duplicaciones acumuladas
         for (let i = 0; i < event.results.length; ++i) {
           const res = event.results[i];
+          const text = (res[0]?.transcript || '').trim();
+          if (!text) continue;
+
           if (res.isFinal) {
-            finalStr += res[0].transcript + ' ';
+            finalResults.push(text);
           } else {
-            interimStr += res[0].transcript;
+            interimResults.push(text);
           }
         }
 
-        const cleanFinal = deduplicateText(finalStr.trim());
-        setTranscript(cleanFinal);
-        setInterimTranscript(interimStr);
+        const cleanFinal = mergeTranscriptResults(finalResults);
+        const rawInterim = mergeTranscriptResults(interimResults);
+        const cleanInterim = extractInterimDelta(cleanFinal, rawInterim);
 
-        const currentCombined = deduplicateText((cleanFinal + ' ' + interimStr).trim());
+        setTranscript(cleanFinal);
+        setInterimTranscript(cleanInterim);
+
+        const currentCombined = cleanInterim 
+          ? deduplicateText((cleanFinal + ' ' + cleanInterim).trim()) 
+          : cleanFinal;
         
-        // Interpretar en vivo si hay al menos 3 caracteres
-        if (currentCombined.length >= 3) {
+        // Interpretar en vivo si hay al menos 2 caracteres
+        if (currentCombined.length >= 2) {
           const liveParsed = parseVoiceCommand(currentCombined, defaultStation, availableStations);
           setParsedCommand(liveParsed);
         }
@@ -403,8 +507,10 @@ export function useVoiceCommander(defaultStation: StationName = 'Saucier', avail
 
         // Buffer de silencio: tras 2.2s sin nuevas palabras, consolidar
         silenceTimeoutRef.current = setTimeout(() => {
-          if (cleanFinal || interimStr) {
-            const finalFull = deduplicateText((cleanFinal + ' ' + interimStr).trim());
+          if (cleanFinal || cleanInterim) {
+            const finalFull = cleanInterim 
+              ? deduplicateText((cleanFinal + ' ' + cleanInterim).trim()) 
+              : cleanFinal;
             if (finalFull) {
               setTranscript(finalFull);
               setInterimTranscript('');
@@ -460,15 +566,17 @@ export function useVoiceCommander(defaultStation: StationName = 'Saucier', avail
     }
 
     try {
-      recognitionRef.current.start();
-    } catch (err) {
+      // Abortar cualquier sesión anterior para vaciar el buffer acumulado de Chrome
+      recognitionRef.current.abort();
+    } catch (_) {}
+
+    setTimeout(() => {
       try {
-        recognitionRef.current.stop();
-        setTimeout(() => recognitionRef.current?.start(), 150);
-      } catch (e) {
-        console.error(e);
+        recognitionRef.current?.start();
+      } catch (err) {
+        console.warn('Recognition start retry', err);
       }
-    }
+    }, 60);
   }, []);
 
   const stopListening = useCallback(() => {
@@ -483,6 +591,11 @@ export function useVoiceCommander(defaultStation: StationName = 'Saucier', avail
 
   const resetCommand = useCallback(() => {
     if (silenceTimeoutRef.current) clearTimeout(silenceTimeoutRef.current);
+    if (recognitionRef.current) {
+      try {
+        recognitionRef.current.abort();
+      } catch (_) {}
+    }
     setParsedCommand(null);
     setTranscript('');
     setInterimTranscript('');
