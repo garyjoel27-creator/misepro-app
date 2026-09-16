@@ -1,4 +1,4 @@
-// MisePro Service Worker - Version 2.2.0-voice-and-ui-fix
+// MisePro Service Worker - Version 2.3.0-appcc-sanitary-system
 self.addEventListener('install', (event) => {
   self.skipWaiting();
 });

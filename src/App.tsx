@@ -22,7 +22,8 @@ import {
   RotateCcw,
   Mic,
   ChefHat,
-  Plus 
+  Plus,
+  ShieldCheck 
 } from 'lucide-react';
 import { KanbanBoard } from './components/KanbanBoard';
 import { LogisticsDrawer } from './components/LogisticsDrawer';
@@ -31,6 +32,7 @@ import { ShiftSettingsModal } from './components/ShiftSettingsModal';
 import { ServiceCountdown } from './components/ServiceCountdown';
 import { CreateTaskModal } from './components/CreateTaskModal';
 import { ServiceDashboard } from './components/ServiceDashboard';
+import { APPCCDashboard } from './components/APPCCDashboard';
 import { VoiceAssistantModal } from './components/VoiceAssistantModal';
 import { OnboardingWizardModal } from './components/OnboardingWizardModal';
 import { StationManagerModal } from './components/StationManagerModal';
@@ -237,7 +239,7 @@ export default function App() {
   } = useBrigadeStore();
   
   // Navigation: Bottom App Bar Tabs
-  const [activeTab, setActiveTab] = useState<'prep' | 'pase' | 'logistica' | 'ajustes'>('prep');
+  const [activeTab, setActiveTab] = useState<'prep' | 'pase' | 'appcc' | 'logistica' | 'ajustes'>('prep');
   
   const [drawerOpen, setDrawerOpen] = useState(false);
   
@@ -549,7 +551,12 @@ export default function App() {
           <ServiceDashboard />
         )}
 
-        {/* Tab 3: LOGÍSTICA & 86 (COMPRAS Y AGOTADOS) */}
+        {/* Tab 3: APPCC & SANIDAD (AUDITORÍA) */}
+        {activeTab === 'appcc' && (
+          <APPCCDashboard />
+        )}
+
+        {/* Tab 4: LOGÍSTICA & 86 (COMPRAS Y AGOTADOS) */}
         {activeTab === 'logistica' && (
           <div className="flex flex-col gap-6">
             <div className="flex flex-wrap items-center justify-between gap-3">
@@ -857,7 +864,20 @@ export default function App() {
           )}
         </button>
 
-        {/* Tab 3: Logística */}
+        {/* Tab 3: APPCC Sanidad */}
+        <button
+          onClick={() => setActiveTab('appcc')}
+          className={`relative flex flex-col items-center justify-center gap-1 min-w-[56px] py-1 px-1.5 rounded-2xl transition-all cursor-pointer active:scale-95 ${
+            activeTab === 'appcc'
+              ? 'text-amber-500 dark:text-amber-400 font-black'
+              : 'text-stone-400 dark:text-slate-500 hover:text-stone-700 dark:hover:text-slate-300'
+          }`}
+        >
+          <ShieldCheck className={`w-5 h-5 ${activeTab === 'appcc' ? 'stroke-[2.5]' : 'stroke-[1.8]'}`} />
+          <span className="text-[0.68rem] tracking-tight">APPCC</span>
+        </button>
+
+        {/* Tab 4: Logística */}
         <button
           onClick={() => setActiveTab('logistica')}
           className={`relative flex flex-col items-center justify-center gap-1 min-w-[64px] py-1 px-2 rounded-2xl transition-all cursor-pointer active:scale-95 ${

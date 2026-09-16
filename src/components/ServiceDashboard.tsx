@@ -12,8 +12,7 @@ import {
   Check, 
   BellRing,
   CheckCircle2,
-  Sparkles,
-  Star
+  Sparkles
 } from 'lucide-react';
 import { useBrigadeStore, type Temporizador } from '../store/useBrigadeStore';
 import { getStationConfig } from '../types/stations';
@@ -33,10 +32,7 @@ export function ServiceDashboard() {
     silenciarAlarmaTemporizador,
     agotados86,
     marcarAgotado86,
-    quitarAgotado86,
-    platosDelDia,
-    agregarPlatoDelDia,
-    eliminarPlatoDelDia
+    quitarAgotado86
   } = useBrigadeStore();
 
   // Tick for timers (every 1 second)
@@ -54,12 +50,6 @@ export function ServiceDashboard() {
 
   // Filter timers by station
   const [selectedStation, setSelectedStation] = useState<string>('Todas');
-
-  // New Plato del Día Form
-  const [nombreEspecial, setNombreEspecial] = useState('');
-  const [partidaEspecial, setPartidaEspecial] = useState(partidas[0] || 'Saucier');
-  const [descEspecial, setDescEspecial] = useState('');
-  const [copiedEspeciales, setCopiedEspeciales] = useState(false);
 
   // New Agotado Form
   const [nombre86, setNombre86] = useState('');
@@ -82,35 +72,6 @@ export function ServiceDashboard() {
     crearTemporizador(customNombre.trim(), customPartida, customMinutos);
     setCustomNombre('');
     setShowCustomModal(false);
-  };
-
-  const handleAddEspecial = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!nombreEspecial.trim()) return;
-    agregarPlatoDelDia({
-      nombre: nombreEspecial.trim(),
-      partida: partidaEspecial,
-      descripcion: descEspecial.trim() || undefined
-    });
-    setNombreEspecial('');
-    setDescEspecial('');
-  };
-
-  const handleCopyEspecialesReport = () => {
-    if (platosDelDia.length === 0) return;
-    const dateStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    let text = `🌟 *BRIEFING DE SALA - PLATOS DEL DÍA / ESPECIALES* [${dateStr}]\n`;
-    text += `Sugerencias del Chef para este servicio:\n\n`;
-    platosDelDia.forEach((item, idx) => {
-      text += `${idx + 1}. *${item.nombre}* (${item.partida})${item.descripcion ? `\n   ↳ ${item.descripcion}` : ''}\n`;
-    });
-    text += `\n¡A informar a los comensales y buen servicio!`;
-
-    if (navigator.clipboard) {
-      navigator.clipboard.writeText(text);
-      setCopiedEspeciales(true);
-      setTimeout(() => setCopiedEspeciales(false), 2500);
-    }
   };
 
   const handleAdd86 = (e: React.FormEvent) => {
@@ -175,15 +136,6 @@ export function ServiceDashboard() {
             <span className="text-[0.65rem] uppercase font-bold text-stone-500 dark:text-slate-400">Timers</span>
             <span className="text-xl font-black text-amber-500">
               {temporizadores.filter(t => t.estado === 'activo').length}
-            </span>
-          </div>
-
-          <div className={`px-3.5 py-2 rounded-xl border flex flex-col items-center justify-center ${
-            isDark ? 'bg-slate-900/80 border-slate-700/60' : 'bg-white border-stone-200 shadow-sm'
-          }`}>
-            <span className="text-[0.65rem] uppercase font-bold text-amber-500/90 dark:text-amber-400">Especiales</span>
-            <span className="text-xl font-black text-amber-500">
-              {platosDelDia.length}
             </span>
           </div>
 
@@ -293,135 +245,9 @@ export function ServiceDashboard() {
           )}
         </section>
 
-        {/* RIGHT COLUMN: PLATOS DEL DÍA & GESTIÓN DE AGOTADOS (4 COLS) */}
+        {/* RIGHT COLUMN: GESTIÓN DE AGOTADOS (4 COLS) */}
         <section className="lg:col-span-4 flex flex-col gap-6">
-          {/* SECCIÓN 1: PLATOS DEL DÍA / ESPECIALES */}
-          <div className="flex flex-col gap-3">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Sparkles className="w-5 h-5 text-amber-500 stroke-[2.5]" />
-                <h3 className="text-base sm:text-lg font-black uppercase tracking-tight text-stone-900 dark:text-white">
-                  Platos del Día ({platosDelDia.length})
-                </h3>
-              </div>
-
-              {platosDelDia.length > 0 && (
-                <button
-                  onClick={handleCopyEspecialesReport}
-                  className={`px-3 py-1.5 rounded-xl border text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 transition-all cursor-pointer shadow-sm ${
-                    copiedEspeciales
-                      ? 'bg-emerald-500 text-white border-emerald-600'
-                      : isDark
-                        ? 'bg-slate-900 hover:bg-slate-800 border-slate-700 text-amber-400'
-                        : 'bg-white hover:bg-amber-50 border-stone-200 text-amber-700'
-                  }`}
-                  title="Copiar resumen para enviar a los camareros"
-                >
-                  {copiedEspeciales ? <Check className="w-3.5 h-3.5" /> : <Share2 className="w-3.5 h-3.5" />}
-                  <span>{copiedEspeciales ? 'Copiado' : 'Avisar Especiales'}</span>
-                </button>
-              )}
-            </div>
-
-            {/* Formulario para añadir plato del día */}
-            <form onSubmit={handleAddEspecial} className={`p-4 rounded-2xl border flex flex-col gap-2.5 shadow-md ${
-              isDark ? 'bg-slate-900/70 border-slate-800' : 'bg-white border-stone-200'
-            }`}>
-              <span className="text-xs font-black uppercase tracking-wider text-amber-500">
-                Añadir Especial del Servicio
-              </span>
-              <input
-                type="text"
-                required
-                value={nombreEspecial}
-                onChange={(e) => setNombreEspecial(e.target.value)}
-                placeholder="Nombre (ej. Arroz con Bogavante)..."
-                className={`min-h-[40px] px-3 rounded-xl border text-sm font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-amber-500 ${
-                  isDark ? 'bg-slate-950/60 border-slate-700 text-white placeholder:text-slate-500' : 'bg-stone-50 border-stone-300 text-stone-900'
-                }`}
-              />
-              <div className="grid grid-cols-2 gap-2">
-                <select
-                  value={partidaEspecial}
-                  onChange={(e) => setPartidaEspecial(e.target.value)}
-                  className={`min-h-[40px] px-3 rounded-xl border text-xs font-bold transition-colors focus:outline-none focus:ring-2 focus:ring-amber-500 ${
-                    isDark ? 'bg-slate-950/60 border-slate-700 text-white' : 'bg-stone-50 border-stone-300 text-stone-900'
-                  }`}
-                >
-                  {partidas.map(p => (
-                    <option key={p} value={p}>{p}</option>
-                  ))}
-                </select>
-                <input
-                  type="text"
-                  value={descEspecial}
-                  onChange={(e) => setDescEspecial(e.target.value)}
-                  placeholder="Detalle/Alérgenos (opcional)..."
-                  className={`min-h-[40px] px-3 rounded-xl border text-xs font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-amber-500 ${
-                    isDark ? 'bg-slate-950/60 border-slate-700 text-white placeholder:text-slate-500' : 'bg-stone-50 border-stone-300 text-stone-900'
-                  }`}
-                />
-              </div>
-              <button
-                type="submit"
-                disabled={!nombreEspecial.trim()}
-                className="min-h-[40px] bg-amber-500 hover:bg-amber-400 active:bg-amber-600 disabled:opacity-50 text-stone-950 font-black uppercase tracking-wider text-xs rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1.5 shadow-md shadow-amber-500/20"
-              >
-                <Plus className="w-4 h-4 stroke-[3]" />
-                <span>Guardar Plato del Día</span>
-              </button>
-            </form>
-
-            {/* Lista de Platos del Día */}
-            <div className="flex flex-col gap-2">
-              {platosDelDia.length === 0 ? (
-                <div className={`p-4 rounded-2xl border text-center flex flex-col items-center justify-center gap-1 ${
-                  isDark ? 'bg-slate-900/30 border-slate-800' : 'bg-white border-stone-200'
-                }`}>
-                  <Star className="w-5 h-5 text-amber-400 opacity-40" />
-                  <span className="text-xs font-semibold text-stone-400 dark:text-slate-500">
-                    Sin platos del día asignados para hoy.
-                  </span>
-                </div>
-              ) : (
-                platosDelDia.map(item => (
-                  <div
-                    key={item.id}
-                    className={`p-3 rounded-2xl border flex items-center justify-between gap-3 transition-all ${
-                      isDark
-                        ? 'bg-amber-500/10 border-amber-500/30 text-amber-100'
-                        : 'bg-amber-50/80 border-amber-200 text-amber-950'
-                    }`}
-                  >
-                    <div className="flex flex-col flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span className="font-bold text-sm truncate">
-                          {item.nombre}
-                        </span>
-                        <span className="text-[0.65rem] px-1.5 py-0.5 rounded font-bold uppercase bg-amber-200/60 dark:bg-amber-900/40 text-amber-800 dark:text-amber-300">
-                          {item.partida}
-                        </span>
-                      </div>
-                      {item.descripcion && (
-                        <span className="text-[0.7rem] opacity-75 truncate mt-0.5">
-                          {item.descripcion}
-                        </span>
-                      )}
-                    </div>
-                    <button
-                      onClick={() => eliminarPlatoDelDia(item.id)}
-                      className="min-h-[32px] w-8 rounded-lg flex items-center justify-center text-stone-400 hover:text-red-500 transition-colors cursor-pointer shrink-0"
-                      title="Eliminar plato del día"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
-
-          {/* SECCIÓN 2: PLATOS AGOTADOS (FUERA DE CARTA) */}
+          {/* PLATOS AGOTADOS (FUERA DE CARTA) */}
           <div className="flex flex-col gap-3">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">

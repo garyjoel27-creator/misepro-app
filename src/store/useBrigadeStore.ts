@@ -80,6 +80,41 @@ export interface NotaPostIt {
   timestamp: number;
 }
 
+export interface PuntoControlAPPCC {
+  id: string;
+  nombre: string;
+  tipo: 'camara' | 'congelador' | 'aceite' | 'lavavajillas' | 'otro';
+  tempMinLegal: number;
+  tempMaxLegal: number;
+  tempIdeal: number;
+  unidad: string;
+}
+
+export interface MedicionAPPCC {
+  puntoId: string;
+  nombrePunto: string;
+  valor: number;
+  conforme: boolean;
+  accionCorrectora?: string;
+}
+
+export interface RegistroAPPCC {
+  id: string;
+  timestamp: number;
+  fecha: string; // YYYY-MM-DD
+  hora: string;  // HH:mm
+  turno: 'Mañana' | 'Tarde';
+  responsable: string;
+  mediciones: MedicionAPPCC[];
+  incidenciaDetectada: boolean;
+}
+
+export interface DatosEstablecimientoAPPCC {
+  nombre: string;
+  cif: string;
+  responsable: string;
+}
+
 export interface BrigadeState {
   turnoActual: TurnoData;
   nombreRestaurante: string;
@@ -161,7 +196,26 @@ export interface BrigadeState {
   platosDelDia: PlatoDelDia[];
   agregarPlatoDelDia: (plato: Omit<PlatoDelDia, 'id'>) => void;
   eliminarPlatoDelDia: (id: string) => void;
+
+  // Sistema Blindado APPCC / Sanidad
+  puntosControlAPPCC: PuntoControlAPPCC[];
+  registrosAPPCC: RegistroAPPCC[];
+  datosEstablecimientoAPPCC: DatosEstablecimientoAPPCC;
+  registrarLecturaAPPCC: (registro: Omit<RegistroAPPCC, 'id' | 'timestamp'>) => void;
+  actualizarPuntosControlAPPCC: (puntos: PuntoControlAPPCC[]) => void;
+  actualizarDatosEstablecimientoAPPCC: (datos: Partial<DatosEstablecimientoAPPCC>) => void;
+  eliminarRegistroAPPCC: (id: string) => void;
 }
+
+export const PUNTOS_CONTROL_APPCC_DEFECTO: PuntoControlAPPCC[] = [
+  { id: 'appcc-c1', nombre: 'Cámara Carnes y Aves', tipo: 'camara', tempMinLegal: 0, tempMaxLegal: 3, tempIdeal: 2, unidad: 'ºC' },
+  { id: 'appcc-c2', nombre: 'Cámara Pescados y Mariscos', tipo: 'camara', tempMinLegal: 0, tempMaxLegal: 2, tempIdeal: 1, unidad: 'ºC' },
+  { id: 'appcc-c3', nombre: 'Cámara Frutas y Verduras', tipo: 'camara', tempMinLegal: 2, tempMaxLegal: 6, tempIdeal: 4, unidad: 'ºC' },
+  { id: 'appcc-c4', nombre: 'Cámara Lácteos y Elaborados', tipo: 'camara', tempMinLegal: 0, tempMaxLegal: 4, tempIdeal: 3, unidad: 'ºC' },
+  { id: 'appcc-c5', nombre: 'Congelador General', tipo: 'congelador', tempMinLegal: -25, tempMaxLegal: -18, tempIdeal: -20, unidad: 'ºC' },
+  { id: 'appcc-c6', nombre: 'Freidora Aceite Fritura', tipo: 'aceite', tempMinLegal: 140, tempMaxLegal: 180, tempIdeal: 170, unidad: 'ºC' },
+  { id: 'appcc-c7', nombre: 'Lavavajillas Aclarado Térmico', tipo: 'lavavajillas', tempMinLegal: 80, tempMaxLegal: 90, tempIdeal: 85, unidad: 'ºC' },
+];
 
 export const PROCESOS_HABITUALES_INICIALES: ProcesoHabitual[] = [
   // Saucier
@@ -252,6 +306,13 @@ export const useBrigadeStore = create<BrigadeState>((setStore, getStore) => ({
   ],
   notasPostIt: [],
   modoZen: false,
+  puntosControlAPPCC: PUNTOS_CONTROL_APPCC_DEFECTO,
+  registrosAPPCC: [],
+  datosEstablecimientoAPPCC: {
+    nombre: 'Restaurante GastroPro',
+    cif: 'B-12345678',
+    responsable: 'Jefe de Cocina'
+  },
 
   toggleModoServicio: () => {
     setStore((state) => {
@@ -671,7 +732,10 @@ export const useBrigadeStore = create<BrigadeState>((setStore, getStore) => ({
            notasPostIt: data.notasPostIt ?? [],
            modoZen: data.modoZen ?? false,
            procesosHabituales: data.procesosHabituales?.length > 0 ? data.procesosHabituales : getStore().procesosHabituales,
-           platosDelDia: data.platosDelDia ?? getStore().platosDelDia
+           platosDelDia: data.platosDelDia ?? getStore().platosDelDia,
+           puntosControlAPPCC: data.puntosControlAPPCC?.length > 0 ? data.puntosControlAPPCC : PUNTOS_CONTROL_APPCC_DEFECTO,
+           registrosAPPCC: Array.isArray(data.registrosAPPCC) ? data.registrosAPPCC : [],
+           datosEstablecimientoAPPCC: data.datosEstablecimientoAPPCC ?? getStore().datosEstablecimientoAPPCC
         };
         setStore(mergedData);
       }
@@ -988,6 +1052,47 @@ export const useBrigadeStore = create<BrigadeState>((setStore, getStore) => ({
   eliminarPlatoDelDia: (id) => {
     setStore((state) => {
       const newState = { platosDelDia: state.platosDelDia.filter(p => p.id !== id) };
+      set('brigade-sync-store', { ...state, ...newState });
+      return newState;
+    });
+  },
+
+  registrarLecturaAPPCC: (registro) => {
+    setStore((state) => {
+      const nuevo: RegistroAPPCC = {
+        id: crypto.randomUUID(),
+        timestamp: Date.now(),
+        ...registro
+      };
+      const newState = { registrosAPPCC: [nuevo, ...state.registrosAPPCC] };
+      set('brigade-sync-store', { ...state, ...newState });
+      return newState;
+    });
+  },
+
+  actualizarPuntosControlAPPCC: (puntos) => {
+    setStore((state) => {
+      const newState = { puntosControlAPPCC: puntos };
+      set('brigade-sync-store', { ...state, ...newState });
+      return newState;
+    });
+  },
+
+  actualizarDatosEstablecimientoAPPCC: (datos) => {
+    setStore((state) => {
+      const newState = {
+        datosEstablecimientoAPPCC: { ...state.datosEstablecimientoAPPCC, ...datos }
+      };
+      set('brigade-sync-store', { ...state, ...newState });
+      return newState;
+    });
+  },
+
+  eliminarRegistroAPPCC: (id) => {
+    setStore((state) => {
+      const newState = {
+        registrosAPPCC: state.registrosAPPCC.filter(r => r.id !== id)
+      };
       set('brigade-sync-store', { ...state, ...newState });
       return newState;
     });
