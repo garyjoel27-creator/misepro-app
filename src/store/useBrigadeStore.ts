@@ -38,7 +38,7 @@ export interface Compra {
   id: string;
   ingrediente: string;
   cantidad: number;
-  categoria: 'Vegetales' | 'Proteinas' | 'Lacteos/Secos';
+  categoria: 'Vegetales' | 'Proteinas' | 'Lacteos/Secos' | 'Otros';
 }
 
 export interface SugerenciaIA {

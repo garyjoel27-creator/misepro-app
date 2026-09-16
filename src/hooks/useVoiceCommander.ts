@@ -459,7 +459,9 @@ export function useVoiceCommander(defaultStation: StationName = 'Saucier', avail
 
     try {
       const recognition = new SpeechRecognition();
-      recognition.continuous = true;
+      // continuous = false garantiza que cada locución sea limpia e independiente,
+      // erradicando el bug acumulativo de Chromium en Android ("cortar cebolla cortar cebolla").
+      recognition.continuous = false;
       recognition.interimResults = true;
       recognition.lang = 'es-ES';
 
@@ -469,56 +471,40 @@ export function useVoiceCommander(defaultStation: StationName = 'Saucier', avail
       };
 
       recognition.onresult = (event: SpeechRecognitionEvent) => {
-        const finalResults: string[] = [];
-        const interimResults: string[] = [];
+        let interim = '';
+        let final = '';
 
-        for (let i = 0; i < event.results.length; ++i) {
+        for (let i = event.resultIndex; i < event.results.length; ++i) {
           const res = event.results[i];
           const text = (res[0]?.transcript || '').trim();
           if (!text) continue;
 
           if (res.isFinal) {
-            finalResults.push(text);
+            final += (final ? ' ' : '') + text;
           } else {
-            interimResults.push(text);
+            interim += (interim ? ' ' : '') + text;
           }
         }
 
-        const cleanFinal = mergeTranscriptResults(finalResults);
-        const rawInterim = mergeTranscriptResults(interimResults);
-        const cleanInterim = extractInterimDelta(cleanFinal, rawInterim);
+        const cleanFinal = deduplicateText(final);
+        const cleanInterim = deduplicateText(interim);
 
-        setTranscript(cleanFinal);
-        setInterimTranscript(cleanInterim);
-
-        const currentCombined = cleanInterim 
-          ? deduplicateText((cleanFinal + ' ' + cleanInterim).trim()) 
-          : cleanFinal;
-        
-        // Interpretar en vivo si hay al menos 2 caracteres
-        if (currentCombined.length >= 2) {
-          const liveParsed = parseVoiceCommand(currentCombined, defaultStation, availableStations);
-          setParsedCommand(liveParsed);
+        if (cleanInterim) {
+          setInterimTranscript(cleanInterim);
+        } else {
+          setInterimTranscript('');
         }
 
-        if (silenceTimeoutRef.current) {
-          clearTimeout(silenceTimeoutRef.current);
+        if (cleanFinal) {
+          setTranscript(cleanFinal);
+          setInterimTranscript('');
+          const parsed = parseVoiceCommand(cleanFinal, defaultStation, availableStations);
+          setParsedCommand(parsed);
+        } else if (cleanInterim && cleanInterim.length >= 3) {
+          // Vista previa en vivo del comando mientras el usuario habla
+          const parsed = parseVoiceCommand(cleanInterim, defaultStation, availableStations);
+          setParsedCommand(parsed);
         }
-
-        // Buffer de silencio: tras 2.2s sin nuevas palabras, consolidar
-        silenceTimeoutRef.current = setTimeout(() => {
-          if (cleanFinal || cleanInterim) {
-            const finalFull = cleanInterim 
-              ? deduplicateText((cleanFinal + ' ' + cleanInterim).trim()) 
-              : cleanFinal;
-            if (finalFull) {
-              setTranscript(finalFull);
-              setInterimTranscript('');
-              const parsed = parseVoiceCommand(finalFull, defaultStation, availableStations);
-              setParsedCommand(parsed);
-            }
-          }
-        }, 2200);
       };
 
       recognition.onerror = (event: SpeechRecognitionErrorEvent) => {

@@ -1,7 +1,8 @@
 import * as Dialog from '@radix-ui/react-dialog';
-import { X, ClipboardCheck, Sparkles, CheckCircle2, XCircle, ShoppingBag } from 'lucide-react';
+import { X, ClipboardCheck, Sparkles, CheckCircle2, XCircle, ShoppingBag, Plus } from 'lucide-react';
 import { useBrigadeStore, type Compra } from '../store/useBrigadeStore';
 import { AnimatePresence, motion } from 'framer-motion';
+import { useState } from 'react';
 
 interface LogisticsDrawerProps {
   open: boolean;
@@ -9,12 +10,27 @@ interface LogisticsDrawerProps {
 }
 
 export function LogisticsDrawer({ open, onOpenChange }: LogisticsDrawerProps) {
-  const { comprasPendientes, vaciarCompras, sugerenciasIA, aceptarSugerencia, descartarSugerencia, analizandoIA } = useBrigadeStore();
+  const { comprasPendientes, vaciarCompras, sugerenciasIA, aceptarSugerencia, descartarSugerencia, analizandoIA, agregarCompra } = useBrigadeStore();
+  const [nuevoItem, setNuevoItem] = useState('');
+
+  const handleAddManual = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (nuevoItem.trim()) {
+      agregarCompra({
+        id: crypto.randomUUID(),
+        ingrediente: nuevoItem.trim(),
+        cantidad: 1,
+        categoria: 'Otros'
+      });
+      setNuevoItem('');
+    }
+  };
 
   const handleExport = async () => {
     const vegetales = comprasPendientes.filter(c => c.categoria === 'Vegetales');
     const proteinas = comprasPendientes.filter(c => c.categoria === 'Proteinas');
     const lacteos = comprasPendientes.filter(c => c.categoria === 'Lacteos/Secos');
+    const otros = comprasPendientes.filter(c => c.categoria === 'Otros');
 
     let text = '*PEDIDO MISEPRO*\n\n';
     
@@ -33,6 +49,12 @@ export function LogisticsDrawer({ open, onOpenChange }: LogisticsDrawerProps) {
     if (lacteos.length > 0) {
       text += '*🥛 LÁCTEOS/SECOS*\n';
       lacteos.forEach(c => text += `- ${c.cantidad}x ${c.ingrediente}\n`);
+      text += '\n';
+    }
+
+    if (otros.length > 0) {
+      text += '*📝 OTROS (Manual)*\n';
+      otros.forEach(c => text += `- ${c.cantidad}x ${c.ingrediente}\n`);
       text += '\n';
     }
 
@@ -90,6 +112,7 @@ export function LogisticsDrawer({ open, onOpenChange }: LogisticsDrawerProps) {
   const vegetales = comprasPendientes.filter(c => c.categoria === 'Vegetales');
   const proteinas = comprasPendientes.filter(c => c.categoria === 'Proteinas');
   const lacteos = comprasPendientes.filter(c => c.categoria === 'Lacteos/Secos');
+  const otros = comprasPendientes.filter(c => c.categoria === 'Otros');
 
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
@@ -136,6 +159,25 @@ export function LogisticsDrawer({ open, onOpenChange }: LogisticsDrawerProps) {
                 
                 {/* Content */}
                 <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-5">
+                  
+                  {/* Buscador / Añadir Manual */}
+                  <form onSubmit={handleAddManual} className="relative">
+                    <input
+                      type="text"
+                      placeholder="Añadir ítem suelto..."
+                      value={nuevoItem}
+                      onChange={(e) => setNuevoItem(e.target.value)}
+                      className="w-full pl-4 pr-12 py-3 bg-white dark:bg-slate-900 border border-stone-200 dark:border-slate-800 rounded-xl text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-amber-400"
+                    />
+                    <button
+                      type="submit"
+                      disabled={!nuevoItem.trim()}
+                      className="absolute right-2 top-2 min-h-[32px] min-w-[32px] flex items-center justify-center bg-amber-400 hover:bg-amber-500 text-amber-950 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                    >
+                      <Plus className="w-4 h-4 stroke-[2.5]" />
+                    </button>
+                  </form>
+
                   {analizandoIA && (
                     <div className="flex flex-col items-center justify-center p-6 bg-gradient-to-br from-amber-400/20 to-amber-500/10 dark:from-amber-400/15 dark:to-slate-900 border border-amber-500/40 rounded-2xl text-amber-900 dark:text-amber-300 backdrop-blur-md shadow-lg">
                       <Sparkles className="w-8 h-8 animate-spin mb-2 stroke-[2.5]" />
@@ -201,6 +243,7 @@ export function LogisticsDrawer({ open, onOpenChange }: LogisticsDrawerProps) {
                       <CategorizedList title="Vegetales" items={vegetales} icon="🥦" />
                       <CategorizedList title="Proteínas" items={proteinas} icon="🥩" />
                       <CategorizedList title="Lácteos y Secos" items={lacteos} icon="🥛" />
+                      <CategorizedList title="Otros (Manual)" items={otros} icon="📝" />
                     </div>
                   )}
                 </div>

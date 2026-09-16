@@ -136,7 +136,7 @@ export function TaskCard({ tarea, index, isMobile = false }: TaskCardProps) {
   const cardContent = (
     <div
       onDoubleClick={() => setIsEditing(true)}
-      className={`group relative flex items-center gap-2.5 px-3 py-2 transition-all duration-200 border-b border-stone-200/40 dark:border-slate-800/40 last:border-b-0 ${
+      className={`group relative flex items-start gap-2.5 px-3 py-2 transition-all duration-200 border-b border-stone-200/40 dark:border-slate-800/40 last:border-b-0 ${
         isEnProceso
           ? isDark
             ? 'bg-amber-500/10 hover:bg-amber-500/15 border-l-2 border-l-amber-500 text-amber-100'
@@ -159,7 +159,7 @@ export function TaskCard({ tarea, index, isMobile = false }: TaskCardProps) {
         type="button"
         onClick={handleToggleState}
         disabled={isFlashing}
-        className={`relative w-5 h-5 sm:w-6 sm:h-6 rounded-full border-[1.5px] shrink-0 flex items-center justify-center transition-all duration-300 outline-none cursor-pointer active:scale-90 ${
+        className={`relative w-5 h-5 sm:w-6 sm:h-6 mt-0.5 rounded-full border-[1.5px] shrink-0 flex items-center justify-center transition-all duration-300 outline-none cursor-pointer active:scale-90 ${
           isCompletado
             ? 'border-emerald-500 bg-emerald-500 text-white'
             : isEnProceso
@@ -195,8 +195,8 @@ export function TaskCard({ tarea, index, isMobile = false }: TaskCardProps) {
 
       {/* Main Info - Extremely Condensed */}
       <div className="flex-1 min-w-0 flex items-center justify-between gap-2">
-        <div className="flex items-center gap-1.5 min-w-0 truncate">
-          <span className={`text-[13px] sm:text-sm font-medium tracking-tight truncate transition-all duration-300 ${
+        <div className="flex items-center gap-1.5 min-w-0">
+          <span className={`text-[13px] sm:text-sm font-medium tracking-tight whitespace-normal break-words transition-all duration-300 ${
             isCompletado
               ? 'line-through text-stone-400 dark:text-slate-500'
               : isEnProceso
