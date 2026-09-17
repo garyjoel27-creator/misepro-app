@@ -492,7 +492,11 @@ export const useBrigadeStore = create<BrigadeState>((setStore, getStore) => ({
 
   setNombreRestaurante: (nombre) => {
     setStore((state) => {
-      const newState = { nombreRestaurante: nombre };
+      const clean = nombre.trim() || 'Mi Cocina Pro';
+      const newState = { 
+        nombreRestaurante: clean,
+        hasConfiguredOnboarding: true 
+      };
       set('brigade-sync-store', { ...state, ...newState });
       return newState;
     });
@@ -534,7 +538,8 @@ export const useBrigadeStore = create<BrigadeState>((setStore, getStore) => ({
       }
       const newState = { 
         partidas: [...state.partidas, clean],
-        coloresPartidas: newColores
+        coloresPartidas: newColores,
+        hasConfiguredOnboarding: true
       };
       set('brigade-sync-store', { ...state, ...newState });
       return newState;
@@ -557,7 +562,8 @@ export const useBrigadeStore = create<BrigadeState>((setStore, getStore) => ({
       const newState = {
         partidas: newPartidas,
         kanbanTareas: newTareas,
-        coloresPartidas: newColores
+        coloresPartidas: newColores,
+        hasConfiguredOnboarding: true
       };
       set('brigade-sync-store', { ...state, ...newState });
       return newState;
@@ -567,7 +573,10 @@ export const useBrigadeStore = create<BrigadeState>((setStore, getStore) => ({
   setColorPartida: (partida, colorKey) => {
     setStore((state) => {
       const newColores = { ...state.coloresPartidas, [partida]: colorKey };
-      const newState = { coloresPartidas: newColores };
+      const newState = { 
+        coloresPartidas: newColores,
+        hasConfiguredOnboarding: true 
+      };
       set('brigade-sync-store', { ...state, ...newState });
       return newState;
     });
@@ -580,7 +589,8 @@ export const useBrigadeStore = create<BrigadeState>((setStore, getStore) => ({
       const newState = { 
         partidas: state.partidas.filter(p => p !== nombre),
         kanbanTareas: state.kanbanTareas.filter(t => t.partida !== nombre),
-        coloresPartidas: newColores
+        coloresPartidas: newColores,
+        hasConfiguredOnboarding: true
       };
       set('brigade-sync-store', { ...state, ...newState });
       return newState;
@@ -714,15 +724,21 @@ export const useBrigadeStore = create<BrigadeState>((setStore, getStore) => ({
     try {
       const data = await get('brigade-sync-store');
       if (data) {
-        const hasOnboarding = data.hasConfiguredOnboarding === true;
+        const hasOnboarding = data.hasConfiguredOnboarding === true || (Array.isArray(data.partidas) && data.partidas.length > 0);
         const mergedData = {
            ...data,
+           turnoActual: data.turnoActual ?? getStore().turnoActual,
            nombreRestaurante: data.nombreRestaurante || 'Mi Cocina Pro',
            hasConfiguredOnboarding: hasOnboarding,
            coloresPartidas: data.coloresPartidas ?? {},
-           // Si ya configuró su onboarding, se respeta estrictamente lo que guardó, aunque esté vacío
-           partidas: hasOnboarding ? (data.partidas ?? []) : (data.partidas?.length > 0 ? data.partidas : getStore().partidas),
-           kanbanTareas: hasOnboarding ? (data.kanbanTareas ?? []) : (data.kanbanTareas?.length > 0 ? data.kanbanTareas : getStore().kanbanTareas),
+           // Si ya configuró su onboarding o tiene partidas guardadas, se respeta estrictamente lo guardado
+           partidas: Array.isArray(data.partidas) 
+             ? data.partidas 
+             : (hasOnboarding ? [] : getStore().partidas),
+           kanbanTareas: Array.isArray(data.kanbanTareas) 
+             ? data.kanbanTareas 
+             : (hasOnboarding ? [] : getStore().kanbanTareas),
+           comprasPendientes: Array.isArray(data.comprasPendientes) ? data.comprasPendientes : [],
            temporizadores: data.temporizadores ?? getStore().temporizadores,
            agotados86: data.agotados86 ?? getStore().agotados86,
            modoServicio: data.modoServicio ?? false,

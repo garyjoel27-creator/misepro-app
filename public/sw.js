@@ -1,4 +1,4 @@
-// MisePro Service Worker - Version 2.3.0-appcc-sanitary-system
+// MisePro Service Worker - Version 2.4.0-settings-fix-and-appcc-export
 self.addEventListener('install', (event) => {
   self.skipWaiting();
 });

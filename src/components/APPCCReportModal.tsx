@@ -61,6 +61,256 @@ export function APPCCReportModal({ isOpen, onClose }: APPCCReportModalProps) {
     window.print();
   };
 
+  const handleExportWord = () => {
+    if (registrosFiltrados.length === 0) {
+      alert('No hay registros en el mes seleccionado para exportar.');
+      return;
+    }
+
+    const pccHeaders = puntosControlAPPCC.map(p => 
+      `<th style="border: 1px solid #444; padding: 6px 4px; background-color: #f1f5f9; font-size: 8.5pt; text-align: center;">
+        ${p.nombre}<br>
+        <span style="font-size: 7pt; font-weight: normal; color: #475569;">(${p.tempMinLegal} a ${p.tempMaxLegal}${p.unidad})</span>
+      </th>`
+    ).join('');
+
+    const rowsHtml = registrosFiltrados.map(r => {
+      const pccCells = puntosControlAPPCC.map(p => {
+        const med = r.mediciones.find(m => m.puntoId === p.id);
+        if (!med) return '<td style="border: 1px solid #cbd5e1; padding: 5px; text-align: center; font-size: 8.5pt; color: #94a3b8;">-</td>';
+        const out = med.valor < p.tempMinLegal || med.valor > p.tempMaxLegal;
+        return `<td style="border: 1px solid #cbd5e1; padding: 5px; text-align: center; font-size: 8.5pt; ${out ? 'color: #b91c1c; font-weight: bold; background-color: #fee2e2;' : 'color: #0f172a;'}">${med.valor}º</td>`;
+      }).join('');
+
+      const acciones = r.mediciones
+        .filter(m => m.accionCorrectora)
+        .map(m => `<b>${m.nombrePunto}:</b> ${m.accionCorrectora}`)
+        .join('<br>') || 'Conforme';
+
+      return `<tr>
+        <td style="border: 1px solid #cbd5e1; padding: 5px; text-align: center; font-size: 8.5pt; font-family: monospace;">${r.fecha}</td>
+        <td style="border: 1px solid #cbd5e1; padding: 5px; text-align: center; font-size: 8.5pt; font-family: monospace;">${r.hora}</td>
+        <td style="border: 1px solid #cbd5e1; padding: 5px; text-align: center; font-size: 8.5pt;">${r.turno}</td>
+        <td style="border: 1px solid #cbd5e1; padding: 5px; font-size: 8.5pt; font-weight: 600;">${r.responsable}</td>
+        ${pccCells}
+        <td style="border: 1px solid #cbd5e1; padding: 5px; text-align: center; font-size: 8.5pt; font-weight: bold; color: ${r.incidenciaDetectada ? '#b91c1c' : '#047857'}; background-color: ${r.incidenciaDetectada ? '#fee2e2' : '#ecfdf5'};">
+          ${r.incidenciaDetectada ? 'NO CONFORME' : 'CONFORME'}
+        </td>
+        <td style="border: 1px solid #cbd5e1; padding: 5px; font-size: 8pt; color: ${r.incidenciaDetectada ? '#991b1b' : '#64748b'};">${acciones}</td>
+      </tr>`;
+    }).join('');
+
+    const wordHtml = `
+      <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
+      <head>
+        <meta charset='utf-8'>
+        <title>Auditoría Sanitaria APPCC - ${mesFiltro}</title>
+        <style>
+          @page {
+            size: landscape;
+            margin: 1.5cm;
+          }
+          body { 
+            font-family: Arial, Calibri, sans-serif; 
+            margin: 0; 
+            color: #0f172a;
+          }
+          .header-box {
+            border: 2px solid #0f172a;
+            padding: 14px 18px;
+            margin-bottom: 18px;
+            background-color: #f8fafc;
+          }
+          h1 { 
+            font-size: 15pt; 
+            color: #0f172a; 
+            text-transform: uppercase; 
+            margin: 0 0 4px 0; 
+            text-align: center; 
+            letter-spacing: 0.5px;
+          }
+          .subtitle { 
+            font-size: 9.5pt; 
+            color: #475569; 
+            text-align: center; 
+            margin: 0 0 12px 0; 
+          }
+          table { 
+            border-collapse: collapse; 
+            width: 100%; 
+            margin-bottom: 16px; 
+          }
+          .meta-table td { 
+            padding: 5px 8px; 
+            border: 1px solid #cbd5e1; 
+            font-size: 9pt; 
+          }
+          .pcc-table th { 
+            background-color: #e2e8f0; 
+            color: #0f172a; 
+          }
+          .signatures-table { 
+            margin-top: 35px; 
+            width: 100%; 
+            border: none;
+          }
+          .signatures-table td { 
+            border: none; 
+            padding: 10px 25px; 
+            text-align: center; 
+            font-size: 9.5pt; 
+          }
+        </style>
+      </head>
+      <body>
+        <div class="header-box">
+          <h1>SISTEMA DE AUTOCONTROL HIGIÉNICO-SANITARIO (APPCC)</h1>
+          <div class="subtitle">Hoja Oficial de Registro de Temperaturas, Desviaciones y Medidas Correctoras • Reglamento (CE) 852/2004 & Real Decreto 1021/2022</div>
+          
+          <table class="meta-table">
+            <tr>
+              <td style="width: 50%;"><b>Establecimiento / Razón Social:</b> ${datosEstablecimientoAPPCC.nombre}</td>
+              <td style="width: 50%;"><b>CIF / NIF Sanitario:</b> ${datosEstablecimientoAPPCC.cif}</td>
+            </tr>
+            <tr>
+              <td><b>Responsable Técnico Sanitario:</b> ${datosEstablecimientoAPPCC.responsable}</td>
+              <td><b>Mes de Control Auditado:</b> ${mesFiltro}</td>
+            </tr>
+          </table>
+        </div>
+
+        <h2 style="font-size: 10.5pt; text-transform: uppercase; margin: 12px 0 6px 0; color: #0f172a;">
+          1. Registro de Puntos de Control Crítico (PCC)
+        </h2>
+        <table class="pcc-table">
+          <thead>
+            <tr>
+              <th style="border: 1px solid #444; padding: 6px; font-size: 8.5pt;">Fecha</th>
+              <th style="border: 1px solid #444; padding: 6px; font-size: 8.5pt;">Hora</th>
+              <th style="border: 1px solid #444; padding: 6px; font-size: 8.5pt;">Turno</th>
+              <th style="border: 1px solid #444; padding: 6px; font-size: 8.5pt;">Responsable</th>
+              ${pccHeaders}
+              <th style="border: 1px solid #444; padding: 6px; font-size: 8.5pt;">Dictamen</th>
+              <th style="border: 1px solid #444; padding: 6px; font-size: 8.5pt;">Medidas Correctoras</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rowsHtml}
+          </tbody>
+        </table>
+
+        <h2 style="font-size: 10.5pt; text-transform: uppercase; margin: 16px 0 6px 0; color: #0f172a;">
+          2. Resumen y Conformidad Sanitaria
+        </h2>
+        <table style="width: 100%; border: 1px solid #cbd5e1; background-color: #f8fafc; margin-bottom: 20px;">
+          <tr>
+            <td style="padding: 10px; font-size: 9pt; width: 33%;"><b>Total de Controles Realizados:</b> ${totalLecturas}</td>
+            <td style="padding: 10px; font-size: 9pt; width: 33%;"><b>Tasa de Conformidad:</b> ${porcentajeConformidad}%</td>
+            <td style="padding: 10px; font-size: 9pt; width: 33%;"><b>Incidencias Subsanadas:</b> ${totalIncidencias}</td>
+          </tr>
+        </table>
+
+        <table class="signatures-table">
+          <tr>
+            <td style="width: 50%;">
+              <br><br>
+              ____________________________________________<br>
+              <b>Firma del Responsable del Establecimiento</b><br>
+              <span style="font-size: 8pt; color: #64748b;">Fecha de emisión y sellado oficial</span>
+            </td>
+            <td style="width: 50%;">
+              <br><br>
+              ____________________________________________<br>
+              <b>Firma del Inspector / Auditor Sanitario</b><br>
+              <span style="font-size: 8pt; color: #64748b;">Revisado conforme al R.D. 1021/2022</span>
+            </td>
+          </tr>
+        </table>
+      </body>
+      </html>
+    `;
+
+    const blob = new Blob(['\ufeff', wordHtml], { type: 'application/msword;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `Auditoria_APPCC_${mesFiltro}_${datosEstablecimientoAPPCC.nombre.replace(/\s+/g, '_')}.doc`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  const handleExportExcel = () => {
+    if (registrosFiltrados.length === 0) {
+      alert('No hay registros en el mes seleccionado para exportar.');
+      return;
+    }
+
+    const pccHeaders = puntosControlAPPCC.map(p => 
+      `<th style="background-color: #e2e8f0; font-weight: bold; border: 1px solid #000; text-align: center;">${p.nombre} (${p.tempMinLegal} a ${p.tempMaxLegal}${p.unidad})</th>`
+    ).join('');
+
+    const rowsHtml = registrosFiltrados.map(r => {
+      const pccCells = puntosControlAPPCC.map(p => {
+        const med = r.mediciones.find(m => m.puntoId === p.id);
+        if (!med) return '<td style="border: 1px solid #ccc; text-align: center;">-</td>';
+        const out = med.valor < p.tempMinLegal || med.valor > p.tempMaxLegal;
+        return `<td style="border: 1px solid #ccc; text-align: center; ${out ? 'color: red; font-weight: bold; background-color: #fee2e2;' : ''}">${med.valor}º</td>`;
+      }).join('');
+
+      const acciones = r.mediciones
+        .filter(m => m.accionCorrectora)
+        .map(m => `${m.nombrePunto}: ${m.accionCorrectora}`)
+        .join(' | ') || 'Ninguna';
+
+      return `<tr>
+        <td style="border: 1px solid #ccc; text-align: center;">${r.fecha}</td>
+        <td style="border: 1px solid #ccc; text-align: center;">${r.hora}</td>
+        <td style="border: 1px solid #ccc; text-align: center;">${r.turno}</td>
+        <td style="border: 1px solid #ccc;">${r.responsable}</td>
+        ${pccCells}
+        <td style="border: 1px solid #ccc; font-weight: bold; text-align: center; color: ${r.incidenciaDetectada ? 'red' : 'green'};">${r.incidenciaDetectada ? 'NO CONFORME' : 'CONFORME'}</td>
+        <td style="border: 1px solid #ccc;">${acciones}</td>
+      </tr>`;
+    }).join('');
+
+    const excelHtml = `
+      <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
+      <head>
+        <meta charset="utf-8">
+      </head>
+      <body>
+        <table>
+          <tr><th colspan="7" style="font-size: 16pt; font-weight: bold; text-align: left;">SISTEMA DE AUTOCONTROL HIGIÉNICO-SANITARIO (APPCC)</th></tr>
+          <tr><td colspan="7" style="color: #666;">Establecimiento: ${datosEstablecimientoAPPCC.nombre} | CIF: ${datosEstablecimientoAPPCC.cif} | Responsable: ${datosEstablecimientoAPPCC.responsable} | Mes: ${mesFiltro}</td></tr>
+          <tr><td colspan="7"></td></tr>
+          <tr>
+            <th style="background-color: #cbd5e1; border: 1px solid #000;">Fecha</th>
+            <th style="background-color: #cbd5e1; border: 1px solid #000;">Hora</th>
+            <th style="background-color: #cbd5e1; border: 1px solid #000;">Turno</th>
+            <th style="background-color: #cbd5e1; border: 1px solid #000;">Responsable</th>
+            ${pccHeaders}
+            <th style="background-color: #cbd5e1; border: 1px solid #000;">Estado</th>
+            <th style="background-color: #cbd5e1; border: 1px solid #000;">Medidas Correctoras</th>
+          </tr>
+          ${rowsHtml}
+        </table>
+      </body>
+      </html>
+    `;
+
+    const blob = new Blob(['\ufeff', excelHtml], { type: 'application/vnd.ms-excel;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `Auditoria_APPCC_${mesFiltro}_${datosEstablecimientoAPPCC.nombre.replace(/\s+/g, '_')}.xls`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
   const handleExportCSV = () => {
     if (registrosFiltrados.length === 0) {
       alert('No hay registros en el mes seleccionado para exportar.');
@@ -191,21 +441,38 @@ export function APPCCReportModal({ isOpen, onClose }: APPCCReportModalProps) {
             </div>
 
             <button
-              onClick={handlePrint}
-              className="min-h-[40px] px-3.5 py-2 rounded-xl bg-stone-900 hover:bg-stone-800 text-white dark:bg-amber-500 dark:hover:bg-amber-400 dark:text-stone-950 font-black text-xs uppercase tracking-wider flex items-center gap-1.5 shadow-md cursor-pointer transition-all active:scale-95"
-              title="Imprimir documento en papel o guardar en PDF"
+              onClick={handleExportWord}
+              className="min-h-[40px] px-3.5 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-black text-xs uppercase tracking-wider flex items-center gap-1.5 shadow-md cursor-pointer transition-all active:scale-95"
+              title="Descargar documento oficial editable para Microsoft Word o Google Docs"
             >
-              <Printer className="w-4 h-4 stroke-[2.5]" />
-              <span>Imprimir A4</span>
+              <FileText className="w-4 h-4 stroke-[2.5]" />
+              <span>Word (.doc)</span>
+            </button>
+
+            <button
+              onClick={handleExportExcel}
+              className="min-h-[40px] px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs uppercase tracking-wider flex items-center gap-1.5 shadow-md cursor-pointer transition-all active:scale-95"
+              title="Descargar hoja de cálculo para Excel o Google Sheets"
+            >
+              <Download className="w-4 h-4 stroke-[2.5]" />
+              <span>Excel (.xls)</span>
             </button>
 
             <button
               onClick={handleExportCSV}
-              className="min-h-[40px] px-3 py-2 rounded-xl bg-stone-200 hover:bg-stone-300 dark:bg-slate-800 dark:hover:bg-slate-700 text-stone-800 dark:text-slate-200 font-bold text-xs flex items-center gap-1.5 cursor-pointer transition-all"
-              title="Exportar a Excel o CSV"
+              className="min-h-[40px] px-2.5 py-2 rounded-xl bg-stone-200 hover:bg-stone-300 dark:bg-slate-800 dark:hover:bg-slate-700 text-stone-800 dark:text-slate-200 font-bold text-xs flex items-center gap-1 cursor-pointer transition-all active:scale-95"
+              title="Exportar datos en archivo CSV plano"
             >
-              <Download className="w-3.5 h-3.5" />
               <span>CSV</span>
+            </button>
+
+            <button
+              onClick={handlePrint}
+              className="min-h-[40px] px-3 py-2 rounded-xl bg-stone-900 hover:bg-stone-800 text-white dark:bg-amber-500 dark:hover:bg-amber-400 dark:text-stone-950 font-black text-xs uppercase tracking-wider flex items-center gap-1.5 shadow-md cursor-pointer transition-all active:scale-95"
+              title="Imprimir documento en papel o vista previa A4"
+            >
+              <Printer className="w-4 h-4 stroke-[2.5]" />
+              <span className="hidden md:inline">Imprimir A4</span>
             </button>
 
             <button
@@ -218,7 +485,7 @@ export function APPCCReportModal({ isOpen, onClose }: APPCCReportModalProps) {
               title="Copiar resumen formal para WhatsApp"
             >
               {copiadoWhatsapp ? <Check className="w-3.5 h-3.5" /> : <Share2 className="w-3.5 h-3.5" />}
-              <span>{copiadoWhatsapp ? 'Copiado' : 'WhatsApp'}</span>
+              <span className="hidden md:inline">{copiadoWhatsapp ? 'Copiado' : 'WhatsApp'}</span>
             </button>
 
             <button

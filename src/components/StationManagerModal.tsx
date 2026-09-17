@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import * as Dialog from '@radix-ui/react-dialog';
 import { 
   Settings, 
@@ -9,7 +9,8 @@ import {
   Check, 
   Download, 
   Upload, 
-  RotateCcw 
+  RotateCcw,
+  Save
 } from 'lucide-react';
 import { useBrigadeStore } from '../store/useBrigadeStore';
 import { useTheme } from '../hooks/useTheme';
@@ -48,7 +49,13 @@ export function StationManagerModal({ open, onOpenChange }: StationManagerModalP
 
   // Restaurant name state
   const [restName, setRestName] = useState(nombreRestaurante || 'Mi Cocina Pro');
-  const [isEditingRestName, setIsEditingRestName] = useState(false);
+  const [saveFeedback, setSaveFeedback] = useState(false);
+
+  useEffect(() => {
+    if (open) {
+      setRestName(nombreRestaurante || 'Mi Cocina Pro');
+    }
+  }, [open, nombreRestaurante]);
 
   // File input ref for JSON import
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -147,47 +154,37 @@ export function StationManagerModal({ open, onOpenChange }: StationManagerModalP
             <div className={`p-4 rounded-2xl border ${
               isDark ? 'bg-slate-900/60 border-slate-800' : 'bg-stone-50 border-stone-200'
             }`}>
-              <span className="text-[11px] font-bold uppercase tracking-wider text-stone-400 dark:text-slate-500 block mb-1">
-                Establecimiento / Restaurante:
-              </span>
+              <label className="text-[11px] font-bold uppercase tracking-wider text-stone-400 dark:text-slate-400 block mb-1.5">
+                Nombre del Establecimiento / Restaurante:
+              </label>
               
-              {isEditingRestName ? (
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    value={restName}
-                    onChange={(e) => setRestName(e.target.value)}
-                    className="flex-1 bg-white dark:bg-slate-950 border border-amber-500 rounded-xl px-3 py-1.5 text-sm font-bold focus:outline-none"
-                  />
-                  <button
-                    onClick={() => {
-                      if (restName.trim()) {
-                        setNombreRestaurante(restName.trim());
-                      }
-                      setIsEditingRestName(false);
-                    }}
-                    className="px-3 py-1.5 rounded-xl bg-amber-500 text-stone-950 font-bold text-xs uppercase cursor-pointer"
-                  >
-                    Guardar
-                  </button>
-                </div>
-              ) : (
-                <div className="flex items-center justify-between">
-                  <span className="text-base font-black text-amber-500 font-serif">
-                    {nombreRestaurante || 'Mi Cocina Pro'}
-                  </span>
-                  <button
-                    onClick={() => {
-                      setRestName(nombreRestaurante || 'Mi Cocina Pro');
-                      setIsEditingRestName(true);
-                    }}
-                    className="text-xs text-stone-400 hover:text-amber-500 flex items-center gap-1 font-bold cursor-pointer"
-                  >
-                    <Pencil className="w-3.5 h-3.5" />
-                    <span>Cambiar</span>
-                  </button>
-                </div>
-              )}
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={restName}
+                  onChange={(e) => {
+                    setRestName(e.target.value);
+                  }}
+                  onBlur={() => {
+                    if (restName.trim()) {
+                      setNombreRestaurante(restName.trim());
+                    }
+                  }}
+                  placeholder="ej. Asador Don Manuel"
+                  className="flex-1 bg-white dark:bg-slate-950 border border-amber-500/60 focus:border-amber-500 rounded-xl px-3 py-2 text-sm font-bold text-amber-500 font-serif focus:outline-none focus:ring-2 focus:ring-amber-500/30"
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (restName.trim()) {
+                      setNombreRestaurante(restName.trim());
+                    }
+                  }}
+                  className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-stone-950 font-black text-xs uppercase tracking-wider cursor-pointer transition-all active:scale-95 shadow-sm"
+                >
+                  Fijar
+                </button>
+              </div>
             </div>
 
             {/* List of Current Stations */}
@@ -449,6 +446,31 @@ export function StationManagerModal({ open, onOpenChange }: StationManagerModalP
                   {importStatus}
                 </div>
               )}
+            </div>
+
+            {/* Primary Save & Close Action */}
+            <div className="pt-2 sticky bottom-0 bg-gradient-to-t from-white dark:from-slate-950 via-white/90 dark:via-slate-950/90 to-transparent pb-1">
+              <button
+                type="button"
+                onClick={() => {
+                  if (restName.trim()) {
+                    setNombreRestaurante(restName.trim());
+                  }
+                  setSaveFeedback(true);
+                  setTimeout(() => {
+                    setSaveFeedback(false);
+                    onOpenChange(false);
+                  }, 600);
+                }}
+                className={`w-full min-h-[48px] px-5 rounded-2xl font-black text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg transition-all cursor-pointer active:scale-95 ${
+                  saveFeedback 
+                    ? 'bg-emerald-500 text-white shadow-emerald-500/20' 
+                    : 'bg-amber-500 hover:bg-amber-400 text-stone-950 shadow-amber-500/20'
+                }`}
+              >
+                {saveFeedback ? <Check className="w-5 h-5 stroke-[3]" /> : <Save className="w-5 h-5" />}
+                <span>{saveFeedback ? '¡Configuración Guardada!' : 'Guardar y Aplicar Configuración'}</span>
+              </button>
             </div>
 
           </div>
