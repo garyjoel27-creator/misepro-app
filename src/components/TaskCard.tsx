@@ -65,13 +65,14 @@ export function TaskCard({ tarea, index, isMobile = false }: TaskCardProps) {
 
   const [isEditing, setIsEditing] = useState(false);
   const [editNombre, setEditNombre] = useState(tarea.nombre);
-  const [editCantidad, setEditCantidad] = useState(tarea.cantidad);
+  const [editCantidad, setEditCantidad] = useState(tarea.cantidad || 1);
   const [isFlashing, setIsFlashing] = useState(false);
   const [savedBadge, setSavedBadge] = useState(false);
 
   const currentIndex = ESTADOS.indexOf(tarea.estado);
   const isCompletado = tarea.estado === 'Completado';
   const isEnProceso = tarea.estado === 'En Proceso';
+  const isAccion = tarea.tipo === 'accion' || (!tarea.cantidad && !tarea.unidad);
 
   const hoyStr = new Date().toISOString().split('T')[0];
   const caducaHoy = tarea.fechaCaducidad === hoyStr;
@@ -81,7 +82,6 @@ export function TaskCard({ tarea, index, isMobile = false }: TaskCardProps) {
   );
 
   const handleToggleState = () => {
-    // Feedback háptico en móvil
     if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
       navigator.vibrate(35);
     }
@@ -101,8 +101,8 @@ export function TaskCard({ tarea, index, isMobile = false }: TaskCardProps) {
     guardarProcesoHabitual({
       nombre: tarea.nombre,
       partida: tarea.partida,
-      cantidadSugerida: tarea.cantidad,
-      unidad: tarea.unidad,
+      cantidadSugerida: tarea.cantidad || 1,
+      unidad: tarea.unidad || 'Kg',
       prioridad: tarea.prioridad
     });
     setSavedBadge(true);
@@ -115,7 +115,10 @@ export function TaskCard({ tarea, index, isMobile = false }: TaskCardProps) {
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
     if (editNombre.trim()) {
-      actualizarTarea(tarea.id, { nombre: editNombre.trim(), cantidad: editCantidad });
+      actualizarTarea(tarea.id, { 
+        nombre: editNombre.trim(), 
+        cantidad: isAccion ? undefined : editCantidad 
+      });
     }
     setIsEditing(false);
   };
@@ -136,16 +139,16 @@ export function TaskCard({ tarea, index, isMobile = false }: TaskCardProps) {
   const cardContent = (
     <div
       onDoubleClick={() => setIsEditing(true)}
-      className={`group relative flex items-start gap-2.5 px-3 py-2 transition-all duration-200 border-b border-stone-200/40 dark:border-slate-800/40 last:border-b-0 ${
+      className={`group relative flex items-start gap-3 px-4 py-3 transition-all duration-200 border-b-2 border-stone-200 dark:border-slate-700 last:border-b-0 ${
         isEnProceso
           ? isDark
-            ? 'bg-amber-500/10 hover:bg-amber-500/15 border-l-2 border-l-amber-500 text-amber-100'
-            : 'bg-amber-50/80 hover:bg-amber-100/70 border-l-2 border-l-amber-500 text-amber-950'
+            ? 'bg-amber-950/60 border-l-4 border-l-amber-500 text-amber-100'
+            : 'bg-amber-50 border-l-4 border-l-amber-500 text-amber-950'
           : isCompletado
           ? 'opacity-40'
           : isDark
-          ? 'bg-slate-900/40 hover:bg-slate-850/60 active:bg-slate-800/60 text-slate-100'
-          : 'bg-white/40 hover:bg-stone-50/70 active:bg-stone-100/70 text-stone-900'
+          ? 'bg-slate-900 text-slate-100'
+          : 'bg-white text-stone-900'
       }`}
     >
       {savedBadge && (
@@ -154,17 +157,17 @@ export function TaskCard({ tarea, index, isMobile = false }: TaskCardProps) {
         </span>
       )}
 
-      {/* Ultra-compact iOS Circular Checkbox */}
+      {/* KDS XL Circular Checkbox — 48px Touch Target */}
       <button
         type="button"
         onClick={handleToggleState}
         disabled={isFlashing}
-        className={`relative w-5 h-5 sm:w-6 sm:h-6 mt-0.5 rounded-full border-[1.5px] shrink-0 flex items-center justify-center transition-all duration-300 outline-none cursor-pointer active:scale-90 ${
+        className={`relative w-12 h-12 rounded-full border-[3px] shrink-0 flex items-center justify-center transition-all duration-300 outline-none cursor-pointer active:scale-90 ${
           isCompletado
             ? 'border-emerald-500 bg-emerald-500 text-white'
             : isEnProceso
-            ? 'border-amber-500 bg-amber-500/20 text-amber-500 ring-2 ring-amber-500/30'
-            : 'border-stone-300 dark:border-slate-600 bg-stone-100/30 dark:bg-slate-800/30 text-transparent hover:border-amber-400 hover:bg-amber-400/10'
+            ? 'border-amber-500 bg-amber-500/30 text-amber-500 ring-4 ring-amber-500/30'
+            : 'border-stone-400 dark:border-slate-500 bg-stone-100 dark:bg-slate-800 text-transparent hover:border-amber-400 hover:bg-amber-400/10'
         }`}
         title={
           isCompletado ? 'Completado (Toca para reiniciar)' :
@@ -185,74 +188,81 @@ export function TaskCard({ tarea, index, isMobile = false }: TaskCardProps) {
         </AnimatePresence>
 
         {isCompletado ? (
-          <Check className="w-3.5 h-3.5 stroke-[3]" />
+          <Check className="w-6 h-6 stroke-[3]" />
         ) : isEnProceso ? (
-          <Flame className="w-3.5 h-3.5 stroke-[2.5] text-amber-500 animate-pulse" />
+          <Flame className="w-6 h-6 stroke-[2.5] text-amber-500 animate-pulse" />
         ) : (
-          <div className="w-1.5 h-1.5 rounded-full bg-transparent group-hover:bg-amber-400 transition-colors" />
+          <div className="w-2.5 h-2.5 rounded-full bg-transparent group-hover:bg-amber-400 transition-colors" />
         )}
       </button>
 
-      {/* Main Info - Extremely Condensed */}
-      <div className="flex-1 min-w-0 flex items-center justify-between gap-2">
-        <div className="flex items-center gap-1.5 min-w-0">
-          <span className={`text-[13px] sm:text-sm font-medium tracking-tight whitespace-normal break-words transition-all duration-300 ${
+      {/* Main Info — KDS Bold Typography */}
+      <div className="flex-1 min-w-0 flex flex-col gap-0.5">
+        <div className="flex items-center gap-2 min-w-0">
+          <span className={`text-sm sm:text-base font-bold tracking-tight whitespace-normal break-words transition-all duration-300 ${
             isCompletado
               ? 'line-through text-stone-400 dark:text-slate-500'
               : isEnProceso
-              ? 'font-bold text-amber-600 dark:text-amber-400'
+              ? 'font-black text-amber-600 dark:text-amber-400'
               : 'text-stone-900 dark:text-slate-100'
           }`}>
             {tarea.nombre}
           </span>
           {caducaHoy && (
-            <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse shrink-0" title="Caduca Hoy" />
+            <span className="w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse shrink-0" title="Caduca Hoy" />
           )}
         </div>
         
-        <div className="flex items-center gap-2 shrink-0">
-          <span className={`text-[11px] sm:text-xs font-bold font-mono tracking-tighter ${
-            isCompletado ? 'text-stone-400 dark:text-slate-500' : isEnProceso ? 'text-amber-600 dark:text-amber-400' : 'text-stone-600 dark:text-slate-300'
-          }`}>
-            {tarea.cantidad}{tarea.unidad.charAt(0)}
-          </span>
+        {/* Action vs Elaboration Visual Distinction */}
+        <div className="flex items-center gap-2">
+          {tarea.tipo === 'accion' ? (
+            <span className="inline-flex items-center gap-1 text-[11px] font-black uppercase tracking-wider px-2 py-0.5 rounded-lg bg-blue-500/15 text-blue-600 dark:text-blue-400 border border-blue-500/30">
+              ⚡ Acción
+            </span>
+          ) : (
+            <span className={`text-xs sm:text-sm font-black font-mono tracking-tighter ${
+              isCompletado ? 'text-stone-400 dark:text-slate-500' : isEnProceso ? 'text-amber-600 dark:text-amber-400' : 'text-stone-700 dark:text-slate-200'
+            }`}>
+              {tarea.cantidad}{tarea.unidad?.charAt(0) || 'K'}
+            </span>
+          )}
           {!isCompletado && <PriorityBeaconBadge prioridad={tarea.prioridad} />}
         </div>
       </div>
 
-      {/* Quick iOS Action Buttons - Smaller for compact list */}
-      <div className="flex items-center gap-0.5 shrink-0">
+      {/* Quick Action Buttons — Larger touch targets */}
+      <div className="flex items-center gap-1 shrink-0">
         <ShoppingModal tarea={tarea} compact />
 
         <button
           type="button"
           onClick={handleGuardarProceso}
-          className={`w-6 h-6 rounded-md flex items-center justify-center transition-colors cursor-pointer ${
+          className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors cursor-pointer ${
             yaEsProceso
               ? 'text-amber-400 hover:text-amber-500'
               : 'text-stone-400 hover:text-amber-400 dark:text-slate-500 dark:hover:text-amber-400'
           }`}
           title={yaEsProceso ? 'En catálogo de procesos habituales' : 'Guardar en procesos habituales de la partida'}
         >
-          <Star className={`w-3 h-3 ${yaEsProceso ? 'fill-amber-400 text-amber-400' : ''}`} />
+          <Star className={`w-4 h-4 ${yaEsProceso ? 'fill-amber-400 text-amber-400' : ''}`} />
         </button>
 
         <button
           type="button"
           onClick={() => setIsEditing(true)}
-          className="w-6 h-6 rounded-md flex items-center justify-center text-stone-400 hover:text-stone-700 dark:text-slate-500 dark:hover:text-slate-200 transition-colors cursor-pointer"
+          className="w-8 h-8 rounded-lg flex items-center justify-center text-stone-400 hover:text-stone-700 dark:text-slate-500 dark:hover:text-slate-200 transition-colors cursor-pointer"
           title="Editar tarea"
         >
-          <Pencil className="w-3 h-3" />
+          <Pencil className="w-4 h-4" />
         </button>
 
         <button
           type="button"
           onClick={handleDelete}
-          className="w-6 h-6 rounded-md flex items-center justify-center text-stone-400 hover:text-red-500 dark:text-slate-500 dark:hover:text-red-400 transition-colors cursor-pointer"
+          className="w-8 h-8 rounded-lg flex items-center justify-center text-stone-400 hover:text-red-500 dark:text-slate-500 dark:hover:text-red-400 transition-colors cursor-pointer"
           title="Eliminar tarea"
         >
-          <Trash2 className="w-3 h-3" />
+          <Trash2 className="w-4 h-4" />
         </button>
       </div>
     </div>
@@ -263,7 +273,7 @@ export function TaskCard({ tarea, index, isMobile = false }: TaskCardProps) {
       <form
         onSubmit={handleSave}
         className={`p-3.5 border-b last:border-b-0 transition-all ${
-          isDark ? 'bg-slate-850 border-amber-500/30' : 'bg-white border-amber-400/40'
+          isDark ? 'bg-[#1e293b] border-amber-500/40' : 'bg-white border-amber-400/60'
         }`}
       >
         <div className="flex flex-col gap-2.5">
@@ -271,34 +281,38 @@ export function TaskCard({ tarea, index, isMobile = false }: TaskCardProps) {
             type="text"
             value={editNombre}
             onChange={(e) => setEditNombre(e.target.value)}
-            className={`w-full px-3 py-2 text-sm font-semibold rounded-lg border outline-none focus:ring-2 focus:ring-amber-400 ${
+            className={`w-full px-3 py-2 text-sm font-bold rounded-lg border outline-none focus:ring-2 focus:ring-amber-400 ${
               isDark ? 'bg-slate-900 border-slate-700 text-white' : 'bg-stone-50 border-stone-300 text-stone-900'
             }`}
             autoFocus
           />
           <div className="flex items-center gap-2">
-            <input
-              type="number"
-              min="0.1"
-              step="0.1"
-              value={editCantidad}
-              onChange={(e) => setEditCantidad(Number(e.target.value))}
-              className={`w-24 px-2 py-1.5 text-center text-sm font-black rounded-lg border outline-none focus:ring-2 focus:ring-amber-400 ${
-                isDark ? 'bg-slate-900 border-slate-700 text-white' : 'bg-stone-50 border-stone-300 text-stone-900'
-              }`}
-            />
-            <span className="text-xs font-bold uppercase text-stone-500">{tarea.unidad}</span>
+            {!isAccion && (
+              <>
+                <input
+                  type="number"
+                  min="0.1"
+                  step="0.1"
+                  value={editCantidad}
+                  onChange={(e) => setEditCantidad(Number(e.target.value))}
+                  className={`w-24 px-2 py-1.5 text-center text-sm font-black rounded-lg border outline-none focus:ring-2 focus:ring-amber-400 ${
+                    isDark ? 'bg-slate-900 border-slate-700 text-white' : 'bg-stone-50 border-stone-300 text-stone-900'
+                  }`}
+                />
+                <span className="text-xs font-bold uppercase text-stone-400">{tarea.unidad || 'Kg'}</span>
+              </>
+            )}
             <div className="flex-1" />
             <button
               type="button"
               onClick={() => setIsEditing(false)}
-              className="px-3 py-1.5 rounded-lg text-xs font-semibold text-stone-500 hover:bg-stone-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+              className="px-3 py-1.5 rounded-lg text-xs font-semibold text-stone-400 hover:text-white transition-colors cursor-pointer"
             >
               Cancelar
             </button>
             <button
               type="submit"
-              className="px-4 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider bg-amber-500 hover:bg-amber-400 text-stone-950 shadow-sm cursor-pointer"
+              className="px-4 py-1.5 rounded-lg text-xs font-black uppercase tracking-wider bg-amber-500 hover:bg-amber-400 text-stone-950 shadow-sm cursor-pointer"
             >
               Guardar
             </button>

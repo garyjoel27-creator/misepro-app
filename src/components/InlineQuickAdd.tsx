@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { Plus, Zap, Trash2, ChevronDown, Check } from 'lucide-react';
 import { useBrigadeStore, type ProcesoHabitual } from '../store/useBrigadeStore';
 import { useTheme } from '../hooks/useTheme';
+import { startsWithActionVerb } from '../hooks/useVoiceCommander';
 
 export function InlineQuickAdd({ partida }: { partida: string }) {
   const { isDark } = useTheme();
@@ -32,11 +33,14 @@ export function InlineQuickAdd({ partida }: { partida: string }) {
     e.preventDefault();
     if (!nombre.trim()) return;
     
+    const isAction = startsWithActionVerb(nombre);
+
     agregarTarea({
       id: crypto.randomUUID(),
       nombre: nombre.trim(),
-      cantidad,
-      unidad: 'Kg',
+      tipo: isAction ? 'accion' : 'elaboracion',
+      cantidad: isAction ? undefined : cantidad,
+      unidad: isAction ? undefined : 'Kg',
       prioridad: 'Media',
       estado: 'Pendiente',
       partida,
@@ -53,6 +57,7 @@ export function InlineQuickAdd({ partida }: { partida: string }) {
     agregarTarea({
       id: crypto.randomUUID(),
       nombre: proc.nombre,
+      tipo: 'elaboracion',
       cantidad: proc.cantidadSugerida,
       unidad: proc.unidad,
       prioridad: proc.prioridad,
@@ -76,7 +81,7 @@ export function InlineQuickAdd({ partida }: { partida: string }) {
           <button
             type="button"
             onClick={() => setShowProcesos(!showProcesos)}
-            className={`min-h-[34px] px-3 rounded-xl border text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 transition-all cursor-pointer shadow-xs active:scale-95 ${
+            className={`min-h-[36px] px-3 rounded-xl border text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 transition-all cursor-pointer shadow-xs active:scale-95 ${
               showProcesos
                 ? 'bg-amber-500 text-stone-950 border-amber-400 font-black'
                 : isDark
@@ -91,12 +96,12 @@ export function InlineQuickAdd({ partida }: { partida: string }) {
 
           {/* Menú flotante de Procesos Habituales */}
           {showProcesos && (
-            <div className={`absolute top-full left-0 mt-1.5 w-72 sm:w-80 rounded-2xl border p-2 shadow-2xl z-40 backdrop-blur-2xl transition-all ${
+            <div className={`absolute top-full left-0 mt-1.5 w-72 sm:w-80 rounded-2xl border-2 p-2 shadow-2xl z-40 transition-all ${
               isDark
-                ? 'bg-slate-950/95 border-slate-800 text-slate-100 shadow-black/80'
-                : 'bg-white/95 border-stone-200 text-stone-900 shadow-stone-900/20'
+                ? 'bg-[#0f172a] border-slate-700 text-slate-100 shadow-black/80'
+                : 'bg-white border-stone-300 text-stone-900 shadow-stone-900/20'
             }`}>
-              <div className="p-2 border-b border-stone-200/50 dark:border-slate-800/60 flex items-center justify-between">
+              <div className="p-2 border-b border-stone-200 dark:border-slate-800 flex items-center justify-between">
                 <div>
                   <h4 className="font-serif font-bold text-xs uppercase tracking-wider text-amber-500 flex items-center gap-1">
                     <Zap className="w-3.5 h-3.5 fill-current" />
@@ -137,7 +142,7 @@ export function InlineQuickAdd({ partida }: { partida: string }) {
                           ) : (
                             <Plus className="w-3.5 h-3.5 text-amber-500 shrink-0 stroke-[2.5]" />
                           )}
-                          <span className="truncate">{proc.nombre}</span>
+                          <span className="truncate font-bold">{proc.nombre}</span>
                           <span className="text-[10px] text-stone-400 dark:text-slate-500 font-mono shrink-0">
                             {proc.cantidadSugerida}{proc.unidad.charAt(0)}
                           </span>
@@ -164,43 +169,42 @@ export function InlineQuickAdd({ partida }: { partida: string }) {
         </div>
       </div>
 
-      {/* Formulario de añadir tarea ad-hoc */}
-      <form onSubmit={handleSubmit} className={`flex flex-col gap-2 p-2 rounded-xl border shadow-sm ${
-        isDark ? 'bg-slate-900/40 border-slate-700/60' : 'bg-white/60 border-stone-200/80'
+      {/* Formulario de añadir tarea ad-hoc con fondos sólidos de alto contraste */}
+      <form onSubmit={handleSubmit} className={`flex flex-col gap-2 p-2.5 rounded-xl border-2 shadow-sm ${
+        isDark ? 'bg-[#0f172a] border-slate-700' : 'bg-white border-stone-300'
       }`}>
         <input
           type="text"
           required
           value={nombre}
           onChange={(e) => setNombre(e.target.value)}
-          placeholder="Escribir tarea nueva (ej. Cortar verduras)..."
-          className={`w-full min-h-[40px] px-3 rounded-lg text-sm font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-amber-500/50 ${
+          placeholder="Escribir tarea (ej. Cortar verduras o 5 Kg Tomates)..."
+          className={`w-full min-h-[42px] px-3 rounded-lg text-sm font-bold transition-colors focus:outline-none focus:ring-2 focus:ring-amber-500 ${
             isDark 
-              ? 'bg-slate-950/50 border border-slate-800 text-slate-100 placeholder:text-slate-500' 
-              : 'bg-stone-50 border border-stone-200 text-stone-900 placeholder:text-stone-400'
+              ? 'bg-slate-950 border border-slate-700 text-slate-100 placeholder:text-slate-500' 
+              : 'bg-stone-50 border border-stone-300 text-stone-900 placeholder:text-stone-400'
           }`}
         />
         <div className="flex gap-2">
           <input
             type="number"
-            required
             min="0.1"
             step="0.1"
             value={cantidad}
             onChange={(e) => setCantidad(Number(e.target.value))}
-            className={`w-20 min-h-[40px] px-2 text-center rounded-lg text-sm font-black transition-colors focus:outline-none focus:ring-2 focus:ring-amber-500/50 ${
+            className={`w-20 min-h-[40px] px-2 text-center rounded-lg text-sm font-black transition-colors focus:outline-none focus:ring-2 focus:ring-amber-500 ${
               isDark 
-                ? 'bg-slate-950/50 border border-slate-800 text-slate-100' 
-                : 'bg-stone-50 border border-stone-200 text-stone-900'
+                ? 'bg-slate-950 border border-slate-700 text-slate-100' 
+                : 'bg-stone-50 border border-stone-300 text-stone-900'
             }`}
           />
           <button
             type="submit"
             disabled={!nombre.trim()}
-            className="flex-1 min-h-[40px] bg-amber-500 hover:bg-amber-400 active:bg-amber-600 disabled:opacity-50 disabled:bg-stone-300 dark:disabled:bg-slate-700 text-stone-950 font-bold uppercase tracking-wider text-xs rounded-lg transition-colors flex items-center justify-center gap-1 cursor-pointer"
+            className="flex-1 min-h-[40px] bg-amber-500 hover:bg-amber-400 active:bg-amber-600 disabled:opacity-50 disabled:bg-stone-300 dark:disabled:bg-slate-700 text-stone-950 font-black uppercase tracking-wider text-xs rounded-lg transition-colors flex items-center justify-center gap-1 cursor-pointer"
           >
             <Plus className="w-4 h-4 stroke-[3]" />
-            Añadir
+            Añadir Tarea
           </button>
         </div>
       </form>

@@ -128,7 +128,7 @@ export function KanbanBoard({ partida, masterMode = false }: KanbanBoardProps) {
             <p className="text-xs uppercase font-bold tracking-wider text-stone-500 dark:text-slate-400">Todo listo</p>
           </div>
         ) : (
-          <div className="rounded-2xl border border-stone-200/60 dark:border-slate-800/60 bg-white/60 dark:bg-slate-900/60 overflow-hidden shadow-sm">
+          <div className="rounded-2xl border-2 border-stone-300 dark:border-slate-700 bg-white dark:bg-slate-900 overflow-hidden shadow-lg">
             <AnimatePresence mode="popLayout">
               {sortedTasks.map((tarea, index) => (
                 <motion.div
@@ -159,22 +159,22 @@ export function KanbanBoard({ partida, masterMode = false }: KanbanBoardProps) {
     return (
       <div className="flex flex-col gap-4 w-full text-left">
         {/* Thumb-friendly Segmented Status Bar (min-h-[48px] touch targets) */}
-        <div className="grid grid-cols-4 gap-1.5 p-1.5 bg-stone-200/60 dark:bg-slate-900/80 border border-stone-300 dark:border-slate-800 rounded-2xl backdrop-blur-md shadow-md">
+        <div className="grid grid-cols-4 gap-1.5 p-1.5 bg-stone-100 dark:bg-[#0f172a] border-2 border-stone-300 dark:border-slate-700 rounded-2xl shadow-md">
           <button
             type="button"
             onClick={() => setActiveMobileTab('Pendiente')}
             className={`min-h-[50px] py-1.5 px-1 flex flex-col items-center justify-center gap-1 rounded-xl font-bold text-xs transition-all border cursor-pointer active:scale-95 ${
               activeMobileTab === 'Pendiente'
-                ? 'bg-stone-900 text-amber-400 dark:bg-slate-950 dark:text-amber-400 border-amber-500/50 shadow-sm'
-                : 'bg-white/80 text-stone-700 dark:bg-slate-850 dark:text-slate-400 border-stone-200/80 dark:border-slate-800 hover:bg-white dark:hover:bg-slate-800'
+                ? 'bg-amber-500 text-stone-950 border-amber-400 font-black shadow-sm'
+                : 'bg-white text-stone-700 dark:bg-[#1e293b] dark:text-slate-300 border-stone-300 dark:border-slate-700 hover:bg-stone-50 dark:hover:bg-slate-800'
             }`}
           >
             <div className="flex items-center gap-1">
               {getStatusIcon('Pendiente')}
               <span className="text-[10px] sm:text-xs font-bold uppercase tracking-tight">Pend.</span>
             </div>
-            <span className={`px-2 py-0.5 rounded-full text-[0.7rem] font-bold border ${
-              activeMobileTab === 'Pendiente' ? 'bg-amber-400 text-slate-950 border-amber-400' : 'bg-stone-100 text-stone-700 dark:bg-slate-800 dark:text-slate-300 border-stone-300 dark:border-slate-700'
+            <span className={`px-2 py-0.5 rounded-full text-[0.7rem] font-black border ${
+              activeMobileTab === 'Pendiente' ? 'bg-stone-950 text-amber-400 border-amber-400' : 'bg-stone-100 text-stone-700 dark:bg-slate-800 dark:text-slate-300 border-stone-300 dark:border-slate-700'
             }`}>
               {pendientesCount}
             </span>
@@ -185,16 +185,16 @@ export function KanbanBoard({ partida, masterMode = false }: KanbanBoardProps) {
             onClick={() => setActiveMobileTab('En Proceso')}
             className={`min-h-[50px] py-1.5 px-1 flex flex-col items-center justify-center gap-1 rounded-xl font-bold text-xs transition-all border cursor-pointer active:scale-95 ${
               activeMobileTab === 'En Proceso'
-                ? 'bg-stone-900 text-amber-400 dark:bg-slate-950 dark:text-amber-400 border-amber-500/50 shadow-sm'
-                : 'bg-white/80 text-stone-700 dark:bg-slate-850 dark:text-slate-400 border-stone-200/80 dark:border-slate-800 hover:bg-white dark:hover:bg-slate-800'
+                ? 'bg-amber-500 text-stone-950 border-amber-400 font-black shadow-sm'
+                : 'bg-white text-stone-700 dark:bg-[#1e293b] dark:text-slate-300 border-stone-300 dark:border-slate-700 hover:bg-stone-50 dark:hover:bg-slate-800'
             }`}
           >
             <div className="flex items-center gap-1">
               {getStatusIcon('En Proceso')}
               <span className="text-[10px] sm:text-xs font-bold uppercase tracking-tight">Proc.</span>
             </div>
-            <span className={`px-2 py-0.5 rounded-full text-[0.7rem] font-bold border ${
-              activeMobileTab === 'En Proceso' ? 'bg-amber-400 text-slate-950 border-amber-400' : 'bg-stone-100 text-stone-700 dark:bg-slate-800 dark:text-slate-300 border-stone-300 dark:border-slate-700'
+            <span className={`px-2 py-0.5 rounded-full text-[0.7rem] font-black border ${
+              activeMobileTab === 'En Proceso' ? 'bg-stone-950 text-amber-400 border-amber-400' : 'bg-stone-100 text-stone-700 dark:bg-slate-800 dark:text-slate-300 border-stone-300 dark:border-slate-700'
             }`}>
               {enProcesoCount}
             </span>
@@ -205,16 +205,16 @@ export function KanbanBoard({ partida, masterMode = false }: KanbanBoardProps) {
             onClick={() => setActiveMobileTab('Completado')}
             className={`min-h-[50px] py-1.5 px-1 flex flex-col items-center justify-center gap-1 rounded-xl font-bold text-xs transition-all border cursor-pointer active:scale-95 ${
               activeMobileTab === 'Completado'
-                ? 'bg-stone-900 text-amber-400 dark:bg-slate-950 dark:text-amber-400 border-amber-500/50 shadow-sm'
-                : 'bg-white/80 text-stone-700 dark:bg-slate-850 dark:text-slate-400 border-stone-200/80 dark:border-slate-800 hover:bg-white dark:hover:bg-slate-800'
+                ? 'bg-amber-500 text-stone-950 border-amber-400 font-black shadow-sm'
+                : 'bg-white text-stone-700 dark:bg-[#1e293b] dark:text-slate-300 border-stone-300 dark:border-slate-700 hover:bg-stone-50 dark:hover:bg-slate-800'
             }`}
           >
             <div className="flex items-center gap-1">
               {getStatusIcon('Completado')}
               <span className="text-[10px] sm:text-xs font-bold uppercase tracking-tight">Listo</span>
             </div>
-            <span className={`px-2 py-0.5 rounded-full text-[0.7rem] font-bold border ${
-              activeMobileTab === 'Completado' ? 'bg-amber-400 text-slate-950 border-amber-400' : 'bg-stone-100 text-stone-700 dark:bg-slate-800 dark:text-slate-300 border-stone-300 dark:border-slate-700'
+            <span className={`px-2 py-0.5 rounded-full text-[0.7rem] font-black border ${
+              activeMobileTab === 'Completado' ? 'bg-stone-950 text-amber-400 border-amber-400' : 'bg-stone-100 text-stone-700 dark:bg-slate-800 dark:text-slate-300 border-stone-300 dark:border-slate-700'
             }`}>
               {completadoCount}
             </span>
@@ -225,16 +225,16 @@ export function KanbanBoard({ partida, masterMode = false }: KanbanBoardProps) {
             onClick={() => setActiveMobileTab('Todas')}
             className={`min-h-[50px] py-1.5 px-1 flex flex-col items-center justify-center gap-1 rounded-xl font-bold text-xs transition-all border cursor-pointer active:scale-95 ${
               activeMobileTab === 'Todas'
-                ? 'bg-stone-900 text-amber-400 dark:bg-slate-950 dark:text-amber-400 border-amber-500/50 shadow-sm'
-                : 'bg-white/80 text-stone-700 dark:bg-slate-850 dark:text-slate-400 border-stone-200/80 dark:border-slate-800 hover:bg-white dark:hover:bg-slate-800'
+                ? 'bg-amber-500 text-stone-950 border-amber-400 font-black shadow-sm'
+                : 'bg-white text-stone-700 dark:bg-[#1e293b] dark:text-slate-300 border-stone-300 dark:border-slate-700 hover:bg-stone-50 dark:hover:bg-slate-800'
             }`}
           >
             <div className="flex items-center gap-1">
               {getStatusIcon('Todas')}
               <span className="text-[10px] sm:text-xs font-bold uppercase tracking-tight">Todas</span>
             </div>
-            <span className={`px-2 py-0.5 rounded-full text-[0.7rem] font-bold border ${
-              activeMobileTab === 'Todas' ? 'bg-amber-400 text-slate-950 border-amber-400' : 'bg-stone-100 text-stone-700 dark:bg-slate-800 dark:text-slate-300 border-stone-300 dark:border-slate-700'
+            <span className={`px-2 py-0.5 rounded-full text-[0.7rem] font-black border ${
+              activeMobileTab === 'Todas' ? 'bg-stone-950 text-amber-400 border-amber-400' : 'bg-stone-100 text-stone-700 dark:bg-slate-800 dark:text-slate-300 border-stone-300 dark:border-slate-700'
             }`}>
               {tareasDePartida.length}
             </span>
@@ -267,13 +267,13 @@ export function KanbanBoard({ partida, masterMode = false }: KanbanBoardProps) {
           )}
         </div>
 
-        {/* Mobile Task Cards List - Apple Reminders Grouped Card */}
+        {/* Mobile Task Cards List - KDS Solid High Contrast Ticket */}
         <div className="pb-10 flex flex-col gap-3">
           {(activeMobileTab === 'Pendiente' || activeMobileTab === 'Todas') && (
             <InlineQuickAdd partida={partida} />
           )}
 
-          <div className="rounded-2xl sm:rounded-3xl border border-stone-200/80 dark:border-slate-800/80 bg-white/80 dark:bg-slate-900/70 backdrop-blur-xl shadow-md overflow-hidden">
+          <div className="rounded-2xl sm:rounded-3xl border-2 border-stone-300 dark:border-slate-700 bg-white dark:bg-[#0f172a] shadow-lg overflow-hidden">
             <AnimatePresence mode="popLayout">
               {filteredTasks.length === 0 ? (
                 <motion.div 
@@ -283,13 +283,13 @@ export function KanbanBoard({ partida, masterMode = false }: KanbanBoardProps) {
                   exit={{ opacity: 0, scale: 0.95 }}
                   className="p-10 text-center flex flex-col items-center justify-center min-h-[180px]"
                 >
-                  <div className="w-12 h-12 mb-3 rounded-full bg-stone-100/80 dark:bg-slate-800/80 flex items-center justify-center">
-                    <CheckCircle2 className="w-6 h-6 text-stone-400 dark:text-amber-400/70 stroke-[1.5]" />
+                  <div className="w-12 h-12 mb-3 rounded-full bg-stone-100 dark:bg-slate-800 flex items-center justify-center">
+                    <CheckCircle2 className="w-6 h-6 text-stone-400 dark:text-amber-400 stroke-[2]" />
                   </div>
-                  <p className="font-serif text-lg tracking-wide text-stone-800 dark:text-slate-100">
+                  <p className="font-serif text-lg font-bold tracking-wide text-stone-800 dark:text-slate-100">
                     Mise en place lista, Chef
                   </p>
-                  <p className="text-[0.65rem] text-stone-400 dark:text-slate-500 font-bold mt-1 uppercase tracking-widest">
+                  <p className="text-[0.7rem] text-stone-500 dark:text-slate-400 font-bold mt-1 uppercase tracking-widest">
                     {activeMobileTab === 'Todas' ? 'Sin tareas asignadas' : `0 tareas en ${activeMobileTab}`}
                   </p>
                 </motion.div>
@@ -314,7 +314,7 @@ export function KanbanBoard({ partida, masterMode = false }: KanbanBoardProps) {
     );
   }
 
-  // Desktop / Tablet (>= md / 768px): 3-Column Drag-and-Drop View
+  // Desktop / Tablet (>= md / 768px): 3-Column Drag-and-Drop View (KDS Chef Board)
   return (
     <DragDropContext onDragEnd={onDragEnd}>
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 h-full w-full text-left">
@@ -324,10 +324,10 @@ export function KanbanBoard({ partida, masterMode = false }: KanbanBoardProps) {
           return (
             <div 
               key={columnId} 
-              className={`flex flex-col h-full bg-white/80 dark:bg-slate-900/70 backdrop-blur-xl rounded-2xl border border-stone-200/90 dark:border-slate-800/80 overflow-hidden shadow-lg shadow-amber-900/5 dark:shadow-xl dark:shadow-black/40 min-h-[480px] md:min-h-[550px] transition-all duration-300 ${stationConfig.column.borderAccent}`}
+              className={`flex flex-col h-full bg-white dark:bg-[#0f172a] rounded-2xl border-2 border-stone-300 dark:border-slate-700 overflow-hidden shadow-xl min-h-[480px] md:min-h-[550px] transition-all duration-300 ${stationConfig.column.borderAccent}`}
             >
-              <div className="p-4 border-b border-stone-200/80 dark:border-slate-800/80 bg-stone-50/70 dark:bg-slate-950/50 flex items-center justify-between">
-                <h3 className="font-bold text-stone-900 dark:text-slate-100 uppercase tracking-wider text-sm flex items-center gap-2">
+              <div className="p-4 border-b-2 border-stone-300 dark:border-slate-700 bg-stone-100 dark:bg-[#1e293b] flex items-center justify-between">
+                <h3 className="font-black text-stone-900 dark:text-slate-100 uppercase tracking-wider text-sm flex items-center gap-2">
                   <span className={stationConfig.column.headerIcon}>
                     {getStatusIcon(columnId)}
                   </span>
@@ -359,9 +359,9 @@ export function KanbanBoard({ partida, masterMode = false }: KanbanBoardProps) {
                   <div
                     ref={provided.innerRef}
                     {...provided.droppableProps}
-                    className={`flex-1 p-4 overflow-y-auto min-h-[360px] transition-all duration-200 rounded-b-2xl ${
+                    className={`flex-1 p-3.5 overflow-y-auto min-h-[360px] bg-white dark:bg-[#0f172a] transition-all duration-200 rounded-b-2xl ${
                       snapshot.isDraggingOver 
-                        ? `${stationConfig.column.dragOver} backdrop-blur-sm shadow-inner`
+                        ? `${stationConfig.column.dragOver} shadow-inner`
                         : 'bg-transparent'
                     }`}
                   >

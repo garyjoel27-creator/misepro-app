@@ -7,11 +7,8 @@ import {
   Pause, 
   RotateCcw, 
   Trash2, 
-  AlertOctagon, 
-  Share2, 
-  Check, 
   BellRing,
-  CheckCircle2
+  AlertTriangle
 } from 'lucide-react';
 import { useBrigadeStore, type Temporizador } from '../store/useBrigadeStore';
 import { getStationConfig } from '../types/stations';
@@ -28,10 +25,7 @@ export function ServiceDashboard() {
     reanudarTemporizador, 
     reiniciarTemporizador, 
     eliminarTemporizador,
-    silenciarAlarmaTemporizador,
-    agotados86,
-    marcarAgotado86,
-    quitarAgotado86
+    silenciarAlarmaTemporizador
   } = useBrigadeStore();
 
   // Tick for timers (every 1 second)
@@ -50,12 +44,6 @@ export function ServiceDashboard() {
   // Filter timers by station
   const [selectedStation, setSelectedStation] = useState<string>('Todas');
 
-  // New Agotado Form
-  const [nombre86, setNombre86] = useState('');
-  const [partida86, setPartida86] = useState(partidas[0] || 'Cocina');
-  const [motivo86, setMotivo86] = useState('');
-  const [copied86, setCopied86] = useState(false);
-
   const handleCreateCustom = (e: React.FormEvent) => {
     e.preventDefault();
     if (!customNombre.trim()) return;
@@ -64,323 +52,174 @@ export function ServiceDashboard() {
     setShowCustomModal(false);
   };
 
-  const handleAdd86 = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!nombre86.trim()) return;
-    marcarAgotado86(nombre86.trim(), partida86, motivo86.trim() || undefined);
-    setNombre86('');
-    setMotivo86('');
-  };
-
-  const handleCopy86Report = () => {
-    if (agotados86.length === 0) return;
-    const dateStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    let text = `🚨 *AVISO DE SALA - PLATOS AGOTADOS (FUERA DE CARTA)* [${dateStr}]\n`;
-    text += `Los siguientes platos/ingredientes NO están disponibles:\n\n`;
-    agotados86.forEach((item, idx) => {
-      text += `${idx + 1}. *${item.nombre}* (${item.partida})${item.motivo ? ` - ${item.motivo}` : ''} [Agotado a las ${item.hora}]\n`;
-    });
-    text += `\nPor favor, informar al equipo de camareros inmediatamente.`;
-
-    if (navigator.clipboard) {
-      navigator.clipboard.writeText(text);
-      setCopied86(true);
-      setTimeout(() => setCopied86(false), 2500);
-    }
-  };
-
   const filteredTimers = selectedStation === 'Todas'
     ? temporizadores
     : temporizadores.filter(t => t.partida === selectedStation);
 
+  const now = Date.now();
+  const activos = temporizadores.filter(t => t.estado === 'activo').length;
+  const expirados = temporizadores.filter(t => t.estado !== 'pausado' && t.finTimestamp <= now && !t.alarmaSilenciada).length;
+
   return (
     <div className="w-full flex-1 flex flex-col gap-6 pb-20 animate-in fade-in duration-300">
-      {/* Top Urgent Status Banner */}
-      <div className={`w-full p-4 sm:p-5 rounded-2xl border shadow-xl flex flex-col md:flex-row items-start md:items-center justify-between gap-4 ${
+      {/* Top Urgent Status Banner - Solid High Contrast */}
+      <div className={`w-full p-4 sm:p-5 rounded-2xl border shadow-lg flex flex-col md:flex-row items-start md:items-center justify-between gap-4 ${
         isDark 
-          ? 'bg-gradient-to-r from-red-950/40 via-slate-900 to-amber-950/30 border-red-500/30 shadow-black/40' 
-          : 'bg-gradient-to-r from-red-50 via-white to-amber-50 border-red-200 shadow-stone-900/5'
+          ? 'bg-[#0f172a] border-slate-800 shadow-black/40' 
+          : 'bg-white border-stone-300 shadow-stone-900/5'
       }`}>
-        <div className="flex items-center gap-3">
-          <div className="w-12 h-12 rounded-xl bg-red-500 text-white flex items-center justify-center shadow-lg shadow-red-500/30 shrink-0">
+        <div className="flex items-center gap-3.5">
+          <div className="w-12 h-12 rounded-2xl bg-amber-500 text-stone-950 flex items-center justify-center shadow-lg shadow-amber-500/20 shrink-0 font-black">
             <Flame className="w-7 h-7 stroke-[2.5] animate-pulse" />
           </div>
           <div>
             <div className="flex items-center gap-2">
               <span className="inline-block w-2.5 h-2.5 rounded-full bg-red-500 animate-ping" />
-              <h2 className="text-lg sm:text-xl font-black uppercase tracking-tight text-red-500 dark:text-red-400">
-                Pase de Servicio en Vivo
+              <h2 className="text-lg sm:text-xl font-black uppercase tracking-tight text-stone-900 dark:text-white">
+                Pase de Servicio en Vivo • Centro de Fuegos
               </h2>
             </div>
-            <p className="text-xs sm:text-sm font-medium text-stone-600 dark:text-slate-300 mt-0.5">
-              Control simultáneo de fuegos, hornos y control inmediato de platos agotados.
+            <p className="text-xs sm:text-sm font-semibold text-stone-600 dark:text-slate-300 mt-0.5">
+              Control simultáneo de fuegos, hornos y tiempos de cocción a pantalla completa.
             </p>
           </div>
         </div>
 
         {/* Quick Summary KPIs */}
-        <div className="flex items-center gap-2.5 self-stretch sm:self-auto justify-between sm:justify-start flex-wrap">
-          <div className={`px-3.5 py-2 rounded-xl border flex flex-col items-center justify-center ${
-            isDark ? 'bg-slate-900/80 border-slate-700/60' : 'bg-white border-stone-200 shadow-sm'
+        <div className="flex items-center gap-2.5 self-stretch sm:self-auto justify-between sm:justify-start">
+          <div className={`px-4 py-2 rounded-xl border flex flex-col items-center justify-center min-w-[80px] ${
+            isDark ? 'bg-[#1e293b] border-slate-700' : 'bg-[#f8fafc] border-stone-300 shadow-xs'
           }`}>
-            <span className="text-[0.65rem] uppercase font-bold text-stone-500 dark:text-slate-400">Timers</span>
+            <span className="text-[0.65rem] uppercase font-black tracking-wider text-stone-500 dark:text-slate-400">Activos</span>
             <span className="text-xl font-black text-amber-500">
-              {temporizadores.filter(t => t.estado === 'activo').length}
+              {activos}
             </span>
           </div>
 
-          <div className={`px-3.5 py-2 rounded-xl border flex flex-col items-center justify-center ${
-            isDark ? 'bg-slate-900/80 border-slate-700/60' : 'bg-white border-stone-200 shadow-sm'
+          {expirados > 0 && (
+            <div className="px-4 py-2 rounded-xl border border-red-500 bg-red-500/10 dark:bg-red-950/40 flex flex-col items-center justify-center min-w-[80px] animate-pulse">
+              <span className="text-[0.65rem] uppercase font-black tracking-wider text-red-600 dark:text-red-400 flex items-center gap-1">
+                <AlertTriangle className="w-3 h-3" /> ¡Alarma!
+              </span>
+              <span className="text-xl font-black text-red-600 dark:text-red-400">
+                {expirados}
+              </span>
+            </div>
+          )}
+
+          <div className={`px-4 py-2 rounded-xl border flex flex-col items-center justify-center min-w-[80px] ${
+            isDark ? 'bg-[#1e293b] border-slate-700' : 'bg-[#f8fafc] border-stone-300 shadow-xs'
           }`}>
-            <span className="text-[0.65rem] uppercase font-bold text-stone-500 dark:text-slate-400">Agotados</span>
-            <span className="text-xl font-black text-red-500">
-              {agotados86.length}
+            <span className="text-[0.65rem] uppercase font-black tracking-wider text-stone-500 dark:text-slate-400">Total</span>
+            <span className="text-xl font-black text-stone-900 dark:text-white">
+              {temporizadores.length}
             </span>
           </div>
         </div>
       </div>
 
-      {/* Main Service Grid: Left (Timers) & Right (86 Agotados) */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        
-        {/* LEFT COLUMN: MULTI-TIMERS (8 COLS) */}
-        <section className="lg:col-span-8 flex flex-col gap-4">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white/40 dark:bg-slate-900/40 backdrop-blur-md p-3.5 sm:p-4 rounded-2xl border border-stone-200/80 dark:border-slate-800/80">
-            <div className="flex items-center gap-3">
-              <div className="flex items-center gap-2">
-                <Clock className="w-5 h-5 text-amber-500 stroke-[2.5]" />
-                <h3 className="text-base sm:text-lg font-black uppercase tracking-tight text-stone-900 dark:text-white">
-                  Temporizadores ({filteredTimers.length})
-                </h3>
-              </div>
-
-              {/* Botón Único y Limpio + Nuevo Timer */}
-              <button
-                onClick={() => setShowCustomModal(true)}
-                className="min-h-[38px] px-3.5 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-stone-950 font-black text-xs uppercase tracking-wider flex items-center gap-1.5 shadow-md shadow-amber-500/20 active:scale-95 transition-all cursor-pointer"
-                title="Crear un nuevo temporizador"
-              >
-                <Plus className="w-4 h-4 stroke-[3]" />
-                <span>+ Nuevo Timer</span>
-              </button>
-            </div>
-
-            {/* Station Filter Pills */}
-            <div className="flex items-center gap-1.5 overflow-x-auto pb-1 max-w-full">
-              {['Todas', ...partidas].map((station) => (
-                <button
-                  key={station}
-                  onClick={() => setSelectedStation(station)}
-                  className={`px-3 py-1.5 rounded-xl text-xs uppercase tracking-wider transition-all cursor-pointer whitespace-nowrap ${
-                    selectedStation === station
-                      ? 'bg-amber-500 text-stone-950 shadow-sm font-black'
-                      : isDark
-                        ? 'bg-slate-900 text-slate-400 hover:text-slate-200 border border-slate-800 font-bold'
-                        : 'bg-stone-100 text-stone-600 hover:text-stone-900 border border-stone-200 font-bold'
-                  }`}
-                >
-                  {station}
-                </button>
-              ))}
-            </div>
+      {/* Action Bar & Station Filter Pills - Solid High Contrast */}
+      <div className={`p-4 rounded-2xl border flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${
+        isDark ? 'bg-[#0f172a] border-slate-800' : 'bg-white border-stone-300 shadow-xs'
+      }`}>
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
+            <Clock className="w-5 h-5 text-amber-500 stroke-[2.5]" />
+            <h3 className="text-base sm:text-lg font-black uppercase tracking-tight text-stone-900 dark:text-white">
+              Temporizadores ({filteredTimers.length})
+            </h3>
           </div>
 
-          {/* Timers Grid */}
-          {filteredTimers.length === 0 ? (
-            <div className={`p-8 rounded-2xl border text-center flex flex-col items-center justify-center gap-3 ${
-              isDark ? 'bg-slate-900/40 border-slate-800' : 'bg-white border-stone-200'
-            }`}>
-              <Clock className="w-10 h-10 text-stone-400 opacity-40" />
-              <p className="text-sm font-semibold text-stone-500 dark:text-slate-400">
-                No hay temporizadores en esta partida. Pulsa un botón rápido arriba para iniciar uno.
-              </p>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {filteredTimers.map((timer) => (
-                <TimerCard 
-                  key={timer.id} 
-                  timer={timer} 
-                  isDark={isDark}
-                  onAjustar={ajustarTiempoTemporizador}
-                  onPausar={pausarTemporizador}
-                  onReanudar={reanudarTemporizador}
-                  onReiniciar={reiniciarTemporizador}
-                  onEliminar={eliminarTemporizador}
-                  onSilenciar={silenciarAlarmaTemporizador}
-                />
-              ))}
-            </div>
-          )}
-        </section>
+          {/* Botón Único y Prominente + Nuevo Timer */}
+          <button
+            onClick={() => setShowCustomModal(true)}
+            className="min-h-[42px] px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-stone-950 font-black text-xs sm:text-sm uppercase tracking-wider flex items-center gap-2 shadow-md shadow-amber-500/20 active:scale-95 transition-all cursor-pointer"
+            title="Crear un nuevo temporizador"
+          >
+            <Plus className="w-4 h-4 stroke-[3]" />
+            <span>+ Nuevo Timer</span>
+          </button>
+        </div>
 
-        {/* RIGHT COLUMN: GESTIÓN DE AGOTADOS (4 COLS) */}
-        <section className="lg:col-span-4 flex flex-col gap-6">
-          {/* PLATOS AGOTADOS (FUERA DE CARTA) */}
-          <div className="flex flex-col gap-3">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <AlertOctagon className="w-5 h-5 text-red-500 stroke-[2.5]" />
-                <h3 className="text-base sm:text-lg font-black uppercase tracking-tight text-stone-900 dark:text-white">
-                  Platos Agotados (Fuera de Carta)
-                </h3>
-              </div>
-
-              <div className="flex items-center gap-2">
-                {agotados86.length > 0 && (
-                  <>
-                    <button
-                      onClick={() => {
-                        const { isChefMode, pinJefe, vaciarAgotados86 } = useBrigadeStore.getState();
-                        if (!isChefMode) {
-                          const p = prompt("Acción protegida. Introduce el PIN del Jefe:");
-                          if (p !== (pinJefe || "1234")) {
-                            alert("PIN incorrecto.");
-                            return;
-                          }
-                        }
-                        if (confirm("¿Limpiar toda la lista de platos agotados?")) {
-                          vaciarAgotados86();
-                        }
-                      }}
-                      className={`px-2 py-1.5 rounded-xl border text-xs font-bold uppercase transition-all cursor-pointer shadow-sm text-red-500 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-500/10 ${
-                        isDark ? 'border-slate-700 bg-slate-900' : 'border-stone-200 bg-white'
-                      }`}
-                      title="Limpiar lista"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-
-                    <button
-                      onClick={handleCopy86Report}
-                      className={`px-3 py-1.5 rounded-xl border text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 transition-all cursor-pointer shadow-sm ${
-                        copied86
-                          ? 'bg-emerald-500 text-white border-emerald-600'
-                          : isDark
-                            ? 'bg-slate-900 hover:bg-slate-800 border-slate-700 text-slate-200'
-                            : 'bg-white hover:bg-stone-50 border-stone-200 text-stone-700'
-                      }`}
-                    >
-                      {copied86 ? <Check className="w-3.5 h-3.5" /> : <Share2 className="w-3.5 h-3.5" />}
-                      <span>{copied86 ? 'Copiado' : 'Avisar Agotados'}</span>
-                    </button>
-                  </>
-                )}
-              </div>
-            </div>
-
-            {/* Add Agotado Form Card */}
-            <form onSubmit={handleAdd86} className={`p-4 rounded-2xl border flex flex-col gap-3 shadow-md ${
-              isDark ? 'bg-slate-900/70 border-slate-800' : 'bg-white border-stone-200'
-            }`}>
-              <span className="text-xs font-black uppercase tracking-wider text-red-500">
-                Registrar Plato Agotado
-              </span>
-              <input
-                type="text"
-                required
-                value={nombre86}
-                onChange={(e) => setNombre86(e.target.value)}
-                placeholder="Nombre (ej. Chuletón Gallego)..."
-                className={`min-h-[44px] px-3 rounded-xl border text-sm font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-red-500 ${
-                  isDark ? 'bg-slate-950/60 border-slate-700 text-white placeholder:text-slate-500' : 'bg-stone-50 border-stone-300 text-stone-900'
-                }`}
-              />
-              <div className="grid grid-cols-2 gap-2">
-                <select
-                  value={partida86}
-                  onChange={(e) => setPartida86(e.target.value)}
-                  className={`min-h-[44px] px-3 rounded-xl border text-xs font-bold transition-colors focus:outline-none focus:ring-2 focus:ring-red-500 ${
-                    isDark ? 'bg-slate-950/60 border-slate-700 text-white' : 'bg-stone-50 border-stone-300 text-stone-900'
-                  }`}
-                >
-                  {partidas.map(p => (
-                    <option key={p} value={p}>{p}</option>
-                  ))}
-                </select>
-                <input
-                  type="text"
-                  value={motivo86}
-                  onChange={(e) => setMotivo86(e.target.value)}
-                  placeholder="Motivo (opcional)..."
-                  className={`min-h-[44px] px-3 rounded-xl border text-xs font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-red-500 ${
-                    isDark ? 'bg-slate-950/60 border-slate-700 text-white placeholder:text-slate-500' : 'bg-stone-50 border-stone-300 text-stone-900'
-                  }`}
-                />
-              </div>
-              <button
-                type="submit"
-                disabled={!nombre86.trim()}
-                className="min-h-[44px] bg-red-600 hover:bg-red-500 active:bg-red-700 disabled:opacity-50 text-white font-black uppercase tracking-wider text-xs rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1.5 shadow-md shadow-red-600/20"
-              >
-                <AlertOctagon className="w-4 h-4" />
-                <span>Marcar como Agotado</span>
-              </button>
-            </form>
-          </div>
-
-          {/* List of 86 Items */}
-          <div className="flex flex-col gap-2.5">
-            {agotados86.length === 0 ? (
-              <div className={`p-6 rounded-2xl border text-center flex flex-col items-center justify-center gap-2 ${
-                isDark ? 'bg-slate-900/30 border-slate-800' : 'bg-white border-stone-200'
-              }`}>
-                <CheckCircle2 className="w-8 h-8 text-emerald-500 opacity-60" />
-                <span className="text-xs font-bold text-stone-500 dark:text-slate-400">
-                  Todo disponible. Carta al 100%.
-                </span>
-              </div>
-            ) : (
-              agotados86.map((item) => (
-                <div
-                  key={item.id}
-                  className={`p-3.5 rounded-2xl border flex items-center justify-between gap-3 transition-all ${
-                    isDark
-                      ? 'bg-red-950/20 border-red-500/30 text-slate-200'
-                      : 'bg-red-50/80 border-red-200 text-stone-900'
-                  }`}
-                >
-                  <div className="flex flex-col flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span className="font-black text-sm tracking-tight text-red-600 dark:text-red-400 truncate line-through">
-                        {item.nombre}
-                      </span>
-                      <span className="text-[0.65rem] px-1.5 py-0.5 rounded font-bold uppercase bg-stone-200 dark:bg-slate-800 text-stone-700 dark:text-slate-300">
-                        {item.partida}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-2 mt-0.5 text-[0.7rem] opacity-70">
-                      <span>Agotado a las {item.hora}</span>
-                      {item.motivo && <span>• {item.motivo}</span>}
-                    </div>
-                  </div>
-
-                  <button
-                    onClick={() => quitarAgotado86(item.id)}
-                    className="min-h-[36px] px-2.5 py-1 rounded-lg text-xs font-bold text-stone-500 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-500/10 transition-colors cursor-pointer shrink-0"
-                    title="Restaurar plato a carta"
-                  >
-                    Restaurar
-                  </button>
-                </div>
-              ))
-            )}
-          </div>
-        </section>
-
+        {/* Station Filter Pills */}
+        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 max-w-full">
+          {['Todas', ...partidas].map((station) => (
+            <button
+              key={station}
+              onClick={() => setSelectedStation(station)}
+              className={`min-h-[38px] px-3.5 py-1.5 rounded-xl text-xs uppercase tracking-wider transition-all cursor-pointer whitespace-nowrap ${
+                selectedStation === station
+                  ? 'bg-amber-500 text-stone-950 shadow-sm font-black ring-2 ring-amber-500/40'
+                  : isDark
+                    ? 'bg-[#1e293b] text-slate-300 hover:text-white border border-slate-700 font-bold'
+                    : 'bg-[#f1f5f9] text-stone-700 hover:text-stone-950 border border-stone-300 font-bold'
+              }`}
+            >
+              {station}
+            </button>
+          ))}
+        </div>
       </div>
 
-      {/* Custom Timer Modal */}
+      {/* FULLSCREEN TIMERS GRID: 100% Width (grid-cols-1 md:grid-cols-2 xl:grid-cols-3) */}
+      {filteredTimers.length === 0 ? (
+        <div className={`p-12 rounded-3xl border text-center flex flex-col items-center justify-center gap-4 ${
+          isDark ? 'bg-[#0f172a] border-slate-800' : 'bg-white border-stone-300'
+        }`}>
+          <div className="w-16 h-16 rounded-3xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-500">
+            <Clock className="w-8 h-8 stroke-[2]" />
+          </div>
+          <div>
+            <h4 className="font-serif text-xl font-bold text-stone-900 dark:text-white">
+              No hay temporizadores en esta partida
+            </h4>
+            <p className="text-sm font-medium text-stone-500 dark:text-slate-400 mt-1 max-w-md">
+              Mantén el control absoluto de cocciones en horno, plancha o fuegos en directo.
+            </p>
+          </div>
+          <button
+            onClick={() => setShowCustomModal(true)}
+            className="min-h-[48px] px-6 rounded-2xl bg-amber-500 hover:bg-amber-400 text-stone-950 font-black text-xs uppercase tracking-wider cursor-pointer shadow-lg shadow-amber-500/20 active:scale-95 transition-all flex items-center gap-2"
+          >
+            <Plus className="w-4 h-4 stroke-[3]" />
+            <span>+ Crear Primer Temporizador</span>
+          </button>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+          {filteredTimers.map((timer) => (
+            <TimerCard 
+              key={timer.id} 
+              timer={timer} 
+              isDark={isDark}
+              onAjustar={ajustarTiempoTemporizador}
+              onPausar={pausarTemporizador}
+              onReanudar={reanudarTemporizador}
+              onReiniciar={reiniciarTemporizador}
+              onEliminar={eliminarTemporizador}
+              onSilenciar={silenciarAlarmaTemporizador}
+            />
+          ))}
+        </div>
+      )}
+
+      {/* Custom Timer Modal - Solid High Contrast */}
       {showCustomModal && (
-        <div className="fixed inset-0 z-50 bg-stone-950/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className={`w-full max-w-md rounded-2xl p-6 border shadow-2xl flex flex-col gap-4 ${
-            isDark ? 'bg-slate-900 border-slate-700 text-white' : 'bg-white border-stone-200 text-stone-900'
+        <div className="fixed inset-0 z-50 bg-stone-950/70 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className={`w-full max-w-md rounded-3xl p-6 sm:p-7 border shadow-2xl flex flex-col gap-5 ${
+            isDark ? 'bg-[#0f172a] border-slate-700 text-white' : 'bg-white border-stone-300 text-stone-900'
           }`}>
-            <h3 className="text-xl font-bold font-serif tracking-tight">Nuevo Temporizador</h3>
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-2xl bg-amber-500 text-stone-950 flex items-center justify-center font-black">
+                <Clock className="w-5 h-5 stroke-[2.5]" />
+              </div>
+              <h3 className="text-xl font-serif font-black tracking-tight">Nuevo Temporizador de Pase</h3>
+            </div>
+
             <form onSubmit={handleCreateCustom} className="flex flex-col gap-4">
               <div className="flex flex-col gap-1.5">
-                <label className="text-xs font-bold uppercase tracking-wider text-stone-500 dark:text-slate-400">
-                  Nombre de la Elaboración
+                <label className="text-xs font-black uppercase tracking-wider text-stone-600 dark:text-slate-300">
+                  Nombre de la Elaboración / Fuego
                 </label>
                 <input
                   type="text"
@@ -388,16 +227,16 @@ export function ServiceDashboard() {
                   autoFocus
                   value={customNombre}
                   onChange={(e) => setCustomNombre(e.target.value)}
-                  placeholder="Ej. Arroz Socarrat, Foie Poché..."
-                  className={`min-h-[48px] px-4 rounded-xl border text-sm font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-amber-500 ${
-                    isDark ? 'bg-slate-950/50 border-slate-700 text-white' : 'bg-stone-50 border-stone-300 text-stone-900'
+                  placeholder="Ej. Arroz Socarrat, Foie Poché, Solomillo..."
+                  className={`min-h-[50px] px-4 rounded-xl border text-sm font-bold transition-colors focus:outline-none focus:ring-2 focus:ring-amber-500 ${
+                    isDark ? 'bg-[#1e293b] border-slate-700 text-white placeholder:text-slate-500' : 'bg-[#f8fafc] border-stone-300 text-stone-900'
                   }`}
                 />
               </div>
 
               <div className="grid grid-cols-2 gap-4">
                 <div className="flex flex-col gap-1.5">
-                  <label className="text-xs font-bold uppercase tracking-wider text-stone-500 dark:text-slate-400">
+                  <label className="text-xs font-black uppercase tracking-wider text-stone-600 dark:text-slate-300">
                     Minutos
                   </label>
                   <input
@@ -407,21 +246,21 @@ export function ServiceDashboard() {
                     max="300"
                     value={customMinutos}
                     onChange={(e) => setCustomMinutos(Number(e.target.value))}
-                    className={`min-h-[48px] px-4 rounded-xl border text-sm font-black transition-colors focus:outline-none focus:ring-2 focus:ring-amber-500 ${
-                      isDark ? 'bg-slate-950/50 border-slate-700 text-white' : 'bg-stone-50 border-stone-300 text-stone-900'
+                    className={`min-h-[50px] px-4 rounded-xl border text-base font-black transition-colors focus:outline-none focus:ring-2 focus:ring-amber-500 ${
+                      isDark ? 'bg-[#1e293b] border-slate-700 text-white' : 'bg-[#f8fafc] border-stone-300 text-stone-900'
                     }`}
                   />
                 </div>
 
                 <div className="flex flex-col gap-1.5">
-                  <label className="text-xs font-bold uppercase tracking-wider text-stone-500 dark:text-slate-400">
+                  <label className="text-xs font-black uppercase tracking-wider text-stone-600 dark:text-slate-300">
                     Partida
                   </label>
                   <select
                     value={customPartida}
                     onChange={(e) => setCustomPartida(e.target.value)}
-                    className={`min-h-[48px] px-4 rounded-xl border text-sm font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-amber-500 ${
-                      isDark ? 'bg-slate-950/50 border-slate-700 text-white' : 'bg-stone-50 border-stone-300 text-stone-900'
+                    className={`min-h-[50px] px-4 rounded-xl border text-sm font-bold transition-colors focus:outline-none focus:ring-2 focus:ring-amber-500 ${
+                      isDark ? 'bg-[#1e293b] border-slate-700 text-white' : 'bg-[#f8fafc] border-stone-300 text-stone-900'
                     }`}
                   >
                     {partidas.map(p => (
@@ -431,19 +270,19 @@ export function ServiceDashboard() {
                 </div>
               </div>
 
-              <div className="flex gap-3 mt-2">
+              <div className="flex gap-3 mt-3">
                 <button
                   type="button"
                   onClick={() => setShowCustomModal(false)}
-                  className="flex-1 min-h-[48px] rounded-xl border border-stone-300 dark:border-slate-700 font-bold text-xs uppercase cursor-pointer"
+                  className="flex-1 min-h-[50px] rounded-xl border border-stone-300 dark:border-slate-700 font-bold text-xs uppercase cursor-pointer hover:bg-stone-100 dark:hover:bg-slate-800 transition-colors"
                 >
                   Cancelar
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 min-h-[48px] bg-amber-500 hover:bg-amber-400 text-stone-950 font-black text-xs uppercase rounded-xl cursor-pointer shadow-md shadow-amber-500/20"
+                  className="flex-1 min-h-[50px] bg-amber-500 hover:bg-amber-400 text-stone-950 font-black text-xs uppercase tracking-wider rounded-xl cursor-pointer shadow-md shadow-amber-500/20 active:scale-95 transition-all"
                 >
-                  Comenzar
+                  Comenzar Timer
                 </button>
               </div>
             </form>
@@ -454,7 +293,7 @@ export function ServiceDashboard() {
   );
 }
 
-// Subcomponent: Individual Timer Card
+// Subcomponent: Individual Timer Card (High-Contrast KDS Chef Board)
 interface TimerCardProps {
   timer: Temporizador;
   isDark: boolean;
@@ -523,7 +362,7 @@ function TimerCard({
         oscillator.frequency.setValueAtTime(880, audioCtx.currentTime);
         oscillator.frequency.exponentialRampToValueAtTime(440, audioCtx.currentTime + 0.1);
         
-        gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime);
+        gainNode.gain.setValueAtTime(0.12, audioCtx.currentTime);
         gainNode.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.5);
         
         oscillator.connect(gainNode);
@@ -547,68 +386,68 @@ function TimerCard({
   }, [isFinished, timer.alarmaSilenciada]);
 
   return (
-    <div className={`p-5 rounded-2xl border transition-all duration-300 flex flex-col justify-between gap-4 select-none ${
+    <div className={`p-6 rounded-3xl border-2 transition-all duration-300 flex flex-col justify-between gap-5 select-none shadow-xl ${
       isFinished
-        ? 'bg-red-500/15 border-red-500 shadow-xl shadow-red-500/20 animate-pulse ring-2 ring-red-500'
+        ? 'bg-red-500/15 border-red-500 shadow-red-500/20 animate-pulse ring-4 ring-red-500/40'
         : isDark
-          ? 'bg-slate-900/90 border-slate-800 shadow-lg shadow-black/30 hover:border-slate-700'
-          : 'bg-white border-stone-200 shadow-md shadow-amber-900/5 hover:border-amber-300'
+          ? 'bg-[#0f172a] border-slate-800 shadow-black/40 hover:border-slate-700'
+          : 'bg-white border-stone-300 shadow-stone-900/5 hover:border-amber-400'
     }`}>
-      {/* Top Details */}
-      <div className="flex items-start justify-between gap-2">
-        <div>
-          <span className={`inline-flex items-center gap-1 text-[0.65rem] uppercase font-bold tracking-wider px-2 py-0.5 rounded-md ${stationConfig.card.tag}`}>
+      {/* Top Header & Tags */}
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex-1 min-w-0">
+          <span className={`inline-flex items-center gap-1 text-[0.7rem] uppercase font-black tracking-wider px-2.5 py-1 rounded-lg ${stationConfig.card.tag}`}>
             {timer.partida}
           </span>
-          <h4 className="font-bold text-stone-900 dark:text-white text-base sm:text-lg leading-tight mt-1 truncate">
+          <h4 className="font-black text-stone-900 dark:text-white text-lg sm:text-xl leading-tight mt-2 whitespace-normal break-words">
             {timer.nombre}
           </h4>
         </div>
 
         {isFinished ? (
-          <span className="px-2 py-1 rounded-md bg-red-500 text-white font-black text-xs uppercase tracking-wider flex items-center gap-1 animate-bounce">
-            <BellRing className="w-3.5 h-3.5" />
+          <span className="px-3 py-1.5 rounded-xl bg-red-600 text-white font-black text-xs uppercase tracking-wider flex items-center gap-1.5 animate-bounce shadow-md shadow-red-600/30 shrink-0">
+            <BellRing className="w-4 h-4" />
             ¡LISTO!
           </span>
         ) : timer.estado === 'pausado' ? (
-          <span className="px-2 py-1 rounded-md bg-stone-200 dark:bg-slate-800 text-stone-600 dark:text-slate-400 font-bold text-xs uppercase tracking-wider">
+          <span className="px-2.5 py-1 rounded-lg bg-stone-200 dark:bg-slate-800 text-stone-700 dark:text-slate-300 font-black text-xs uppercase tracking-wider shrink-0">
             Pausado
           </span>
         ) : null}
       </div>
 
-      {/* Main Countdown Display */}
-      <div className="flex items-baseline justify-center py-2">
-        <span className={`text-4xl sm:text-5xl font-black font-mono tracking-tight ${
+      {/* Main Countdown Display: Giant Digits text-5xl sm:text-6xl md:text-7xl */}
+      <div className="flex items-baseline justify-center py-3 bg-[#f8fafc] dark:bg-[#1e293b] rounded-2xl border border-stone-200 dark:border-slate-700/80">
+        <span className={`text-5xl sm:text-6xl md:text-7xl font-mono font-black tracking-tight ${
           isFinished 
-            ? 'text-red-500' 
+            ? 'text-red-600 dark:text-red-400 animate-pulse' 
             : timer.estado === 'pausado'
               ? 'text-stone-400 dark:text-slate-500'
-              : 'text-stone-900 dark:text-white'
+              : 'text-stone-950 dark:text-amber-400'
         }`}>
           {timeFormatted}
         </span>
       </div>
 
-      {/* Quick Adjust Buttons (+1 min, +5 min) */}
+      {/* Quick Adjust Buttons (+1 min, +5 min) or Stop Alarm button */}
       {!isFinished ? (
-        <div className="grid grid-cols-2 gap-2">
+        <div className="grid grid-cols-2 gap-3">
           <button
             onClick={() => onAjustar(timer.id, 60)}
-            className={`min-h-[38px] rounded-lg border font-bold text-xs uppercase tracking-wider transition-colors cursor-pointer ${
+            className={`min-h-[44px] rounded-xl border font-black text-xs sm:text-sm uppercase tracking-wider transition-all cursor-pointer active:scale-95 flex items-center justify-center gap-1 shadow-xs ${
               isDark 
-                ? 'bg-slate-950/60 hover:bg-slate-800 border-slate-700 text-slate-300' 
-                : 'bg-stone-50 hover:bg-stone-100 border-stone-200 text-stone-700'
+                ? 'bg-[#1e293b] hover:bg-slate-700 border-slate-700 text-slate-200' 
+                : 'bg-[#f1f5f9] hover:bg-stone-200 border-stone-300 text-stone-800'
             }`}
           >
             +1 Min
           </button>
           <button
             onClick={() => onAjustar(timer.id, 300)}
-            className={`min-h-[38px] rounded-lg border font-bold text-xs uppercase tracking-wider transition-colors cursor-pointer ${
+            className={`min-h-[44px] rounded-xl border font-black text-xs sm:text-sm uppercase tracking-wider transition-all cursor-pointer active:scale-95 flex items-center justify-center gap-1 shadow-xs ${
               isDark 
-                ? 'bg-slate-950/60 hover:bg-slate-800 border-slate-700 text-slate-300' 
-                : 'bg-stone-50 hover:bg-stone-100 border-stone-200 text-stone-700'
+                ? 'bg-[#1e293b] hover:bg-slate-700 border-slate-700 text-slate-200' 
+                : 'bg-[#f1f5f9] hover:bg-stone-200 border-stone-300 text-stone-800'
             }`}
           >
             +5 Min
@@ -618,29 +457,29 @@ function TimerCard({
         !timer.alarmaSilenciada && (
           <button
             onClick={() => onSilenciar(timer.id)}
-            className="w-full min-h-[48px] rounded-xl bg-red-600 hover:bg-red-500 active:bg-red-700 text-white font-black text-sm uppercase tracking-widest cursor-pointer shadow-lg shadow-red-600/30 transition-all flex items-center justify-center gap-2 animate-bounce"
+            className="w-full min-h-[52px] rounded-2xl bg-red-600 hover:bg-red-500 active:bg-red-700 text-white font-black text-sm sm:text-base uppercase tracking-widest cursor-pointer shadow-xl shadow-red-600/40 transition-all flex items-center justify-center gap-2 animate-bounce ring-2 ring-red-400"
           >
-            <BellRing className="w-5 h-5" />
+            <BellRing className="w-6 h-6" />
             Detener Alarma
           </button>
         )
       )}
 
-      {/* Bottom Controls Bar (Play/Pause, Reset, Delete) */}
-      <div className="flex items-center justify-between pt-3 border-t border-stone-100 dark:border-slate-800/80">
+      {/* Bottom Controls Bar (Play/Pause, Reset, Delete) - Tactile Sizing */}
+      <div className="flex items-center justify-between pt-3 border-t border-stone-200 dark:border-slate-800">
         <div className="flex items-center gap-2">
           {timer.estado === 'activo' ? (
             <button
               onClick={() => onPausar(timer.id)}
-              className="min-h-[40px] px-3.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-500 font-bold text-xs uppercase flex items-center gap-1.5 cursor-pointer transition-colors"
+              className="min-h-[44px] px-4 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-600 dark:text-amber-400 font-black text-xs uppercase flex items-center gap-2 cursor-pointer transition-all active:scale-95 border border-amber-500/30"
             >
-              <Pause className="w-4 h-4" />
+              <Pause className="w-4 h-4 stroke-[3]" />
               <span>Pausar</span>
             </button>
           ) : (
             <button
               onClick={() => onReanudar(timer.id)}
-              className="min-h-[40px] px-3.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-white font-bold text-xs uppercase flex items-center gap-1.5 cursor-pointer transition-colors"
+              className="min-h-[44px] px-4 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs uppercase flex items-center gap-2 cursor-pointer transition-all active:scale-95 shadow-md shadow-emerald-600/20"
             >
               <Play className="w-4 h-4 fill-current" />
               <span>Reanudar</span>
@@ -649,21 +488,21 @@ function TimerCard({
 
           <button
             onClick={() => onReiniciar(timer.id)}
-            className={`min-h-[40px] p-2.5 rounded-xl border transition-colors cursor-pointer ${
-              isDark ? 'hover:bg-slate-800 border-slate-700 text-slate-400' : 'hover:bg-stone-100 border-stone-200 text-stone-500'
+            className={`min-h-[44px] w-[44px] rounded-xl border transition-all cursor-pointer active:scale-95 flex items-center justify-center ${
+              isDark ? 'bg-[#1e293b] hover:bg-slate-700 border-slate-700 text-slate-300' : 'bg-[#f1f5f9] hover:bg-stone-200 border-stone-300 text-stone-700'
             }`}
             title="Reiniciar temporizador"
           >
-            <RotateCcw className="w-4 h-4" />
+            <RotateCcw className="w-4 h-4 stroke-[2.5]" />
           </button>
         </div>
 
         <button
           onClick={() => onEliminar(timer.id)}
-          className="min-h-[40px] p-2.5 rounded-xl text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors cursor-pointer"
+          className="min-h-[44px] w-[44px] rounded-xl text-red-500 hover:bg-red-500/10 transition-all cursor-pointer active:scale-95 flex items-center justify-center border border-transparent hover:border-red-500/30"
           title="Eliminar temporizador"
         >
-          <Trash2 className="w-4 h-4" />
+          <Trash2 className="w-4 h-4 stroke-[2.5]" />
         </button>
       </div>
     </div>

@@ -5,6 +5,7 @@ export type VoiceIntentType = 'tarea' | 'compra' | 'agotado' | 'temporizador';
 
 export interface ParsedVoiceCommand {
   tipo: VoiceIntentType;
+  tipoTarea?: 'accion' | 'elaboracion';
   rawText: string;
   nombre: string;
   cantidad?: number;
@@ -298,15 +299,16 @@ export function parseVoiceCommand(
   }
 
   // 4. Intención por Defecto: TAREA / MISE EN PLACE
-  const { cantidad, unidad, textoRestante } = extractQuantityAndUnit(clean);
+  const metric = extractMetricQuantity(clean);
+  const isAction = startsWithActionVerb(clean) && !metric.hasMetric;
+  const tipoTarea: 'accion' | 'elaboracion' = isAction ? 'accion' : 'elaboracion';
+
+  const textoBase = isAction ? clean : (metric.hasMetric ? metric.textoRestante : clean);
   const partida = detectPartida(clean, availableStations) || defaultStation;
   
-  let nombre = textoRestante
-    .replace(/agregar/gi, '')
-    .replace(/añadir/gi, '')
-    .replace(/crear/gi, '')
-    .replace(/hacer/gi, '')
-    .replace(/preparar/gi, '')
+  let nombre = textoBase
+    .replace(/^(por favor|hay que|toca|tienes que|favor de|vamos a|debes)\s+/gi, '')
+    .replace(/^(agregar|añadir|crear|anotar|apuntar)\s+/gi, '')
     .replace(/a la partida de/gi, '')
     .replace(/en la partida de/gi, '')
     .replace(/a la partida/gi, '')
@@ -316,7 +318,7 @@ export function parseVoiceCommand(
     .replace(/prioridad critica/gi, '')
     .replace(/prioridad media/gi, '')
     .replace(/prioridad baja/gi, '')
-    .replace(/urgente/gi, '')
+    .replace(/\burgente\b/gi, '')
     .replace(/^de /gi, '');
 
   if (partida) {
@@ -337,10 +339,11 @@ export function parseVoiceCommand(
 
   return {
     tipo: 'tarea',
+    tipoTarea,
     rawText: text,
     nombre,
-    cantidad: cantidad || 1,
-    unidad: unidad || 'Kg',
+    cantidad: isAction ? undefined : (metric.cantidad || 1),
+    unidad: isAction ? undefined : (metric.unidad || 'Kg'),
     partida,
     prioridad,
     confianza: clean.length > 3 ? 0.94 : 0.6
@@ -370,24 +373,65 @@ function detectPartida(text: string, availableStations: string[] = []): StationN
   return null;
 }
 
-function extractQuantityAndUnit(text: string): { cantidad: number; unidad: string; textoRestante: string } {
-  let cleanText = text;
-  
-  cleanText = cleanText
-    .replace(/\bun\b/g, '1')
-    .replace(/\buna\b/g, '1')
-    .replace(/\bdos\b/g, '2')
-    .replace(/\btres\b/g, '3')
-    .replace(/\bcuatro\b/g, '4')
-    .replace(/\bcinco\b/g, '5')
-    .replace(/\bseis\b/g, '6')
-    .replace(/\bsiete\b/g, '7')
-    .replace(/\bocho\b/g, '8')
-    .replace(/\bnueve\b/g, '9')
-    .replace(/\bdiez\b/g, '10');
+export const ACTION_VERBS = [
+  'cortar', 'corta', 'cortado',
+  'picar', 'pica', 'picado',
+  'limpiar', 'limpia', 'limpiado',
+  'descongelar', 'descongela', 'descongelado',
+  'repasar', 'repasa', 'repasado',
+  'montar', 'monta', 'montado',
+  'pelar', 'pela', 'pelado',
+  'deshuesar', 'deshuesa', 'deshuesado',
+  'organizar', 'organiza', 'organizado',
+  'marcar', 'marca', 'marcado',
+  'rallar', 'ralla', 'rallado',
+  'laminar', 'lamina', 'laminado',
+  'tornear', 'tornea',
+  'pochar', 'pocha',
+  'sofreir', 'sofrie',
+  'filetear', 'filetea', 'fileteado',
+  'porcionar', 'porciona', 'porcionado',
+  'envasar', 'envasa', 'envasado',
+  'rotular', 'rotula',
+  'ordenar', 'ordena',
+  'desalar', 'desala',
+  'hidratar', 'hidrata',
+  'marinar', 'marina',
+  'blanquear', 'blanquea',
+  'desespinar', 'desespina'
+];
 
-  const regex = /(\d+(?:[.,]\d+)?)\s*(kilos?|kg|litros?|l|gramos?|gr|g|unidades?|ud|uds|botellas?|paquetes?|manojo|piezas?|raciones|latas)/i;
-  const match = cleanText.match(regex);
+export function startsWithActionVerb(text: string): boolean {
+  const stripped = text.trim().toLowerCase()
+    .replace(/^(por favor|hay que|toca|tienes que|favor de|vamos a|debes)\s+/i, '')
+    .replace(/^(agregar|añadir|crear|anotar|apuntar)\s+/i, '')
+    .trim();
+
+  const firstWord = stripped.split(/\s+/)[0];
+  return ACTION_VERBS.includes(firstWord);
+}
+
+export function extractMetricQuantity(text: string): { 
+  hasMetric: boolean; 
+  cantidad?: number; 
+  unidad?: string; 
+  textoRestante: string;
+} {
+  let cleanText = text;
+  // Convertir palabras numéricas solo cuando preceden a unidades de cocina
+  cleanText = cleanText.replace(
+    /\b(un|una|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|diez)\s+(kilos?|kg|litros?|l|gramos?|gr|g|unidades?|ud|uds|botellas?|paquetes?|manojos?|piezas?|raciones|latas|bandejas?)\b/gi,
+    (_match, numWord, unitWord) => {
+      const numMap: Record<string, string> = {
+        un: '1', una: '1', dos: '2', tres: '3', cuatro: '4', cinco: '5',
+        seis: '6', siete: '7', ocho: '8', nueve: '9', diez: '10'
+      };
+      return `${numMap[numWord.toLowerCase()] || numWord} ${unitWord}`;
+    }
+  );
+
+  const regexWithUnit = /(\d+(?:[.,]\d+)?)\s*(kilos?|kg|litros?|l|gramos?|gr|g|unidades?|ud|uds|botellas?|paquetes?|manojo|piezas?|raciones|latas|bandejas?)\b/i;
+  const match = cleanText.match(regexWithUnit);
 
   if (match) {
     const rawVal = match[1].replace(',', '.');
@@ -401,18 +445,31 @@ function extractQuantityAndUnit(text: string): { cantidad: number; unidad: strin
     else unidad = 'Kg';
 
     const textoRestante = cleanText.replace(match[0], '').replace(/\s{2,}/g, ' ').trim();
-    return { cantidad, unidad, textoRestante };
+    return { hasMetric: true, cantidad, unidad, textoRestante };
   }
 
+  // Comprobar si hay un número aislado
   const numOnlyMatch = cleanText.match(/\b(\d+(?:[.,]\d+)?)\b/);
   if (numOnlyMatch) {
     const rawVal = numOnlyMatch[1].replace(',', '.');
     const cantidad = parseFloat(rawVal) || 1;
     const textoRestante = cleanText.replace(numOnlyMatch[0], '').replace(/\s{2,}/g, ' ').trim();
-    return { cantidad, unidad: 'Kg', textoRestante };
+    return { hasMetric: true, cantidad, unidad: 'Kg', textoRestante };
   }
 
-  return { cantidad: 1, unidad: 'Kg', textoRestante: cleanText };
+  return { hasMetric: false, textoRestante: cleanText };
+}
+
+function extractQuantityAndUnit(text: string): { cantidad: number; unidad: string; textoRestante: string } {
+  const metric = extractMetricQuantity(text);
+  if (metric.hasMetric) {
+    return {
+      cantidad: metric.cantidad || 1,
+      unidad: metric.unidad || 'Kg',
+      textoRestante: metric.textoRestante
+    };
+  }
+  return { cantidad: 1, unidad: 'Kg', textoRestante: text };
 }
 
 function deduceCategory(name: string): 'Vegetales' | 'Proteinas' | 'Lacteos/Secos' {

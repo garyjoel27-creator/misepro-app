@@ -120,6 +120,7 @@ export function VoiceAssistantModal({ isOpen, onClose, currentStation = 'Saucier
     if (isOpen && !editableCmd) {
       setEditableCmd({
         tipo: 'tarea',
+        tipoTarea: 'elaboracion',
         rawText: '',
         nombre: '',
         cantidad: 1,
@@ -208,11 +209,13 @@ export function VoiceAssistantModal({ isOpen, onClose, currentStation = 'Saucier
 
     switch (editableCmd.tipo) {
       case 'tarea': {
+        const isAccion = editableCmd.tipoTarea === 'accion';
         agregarTarea({
           id: crypto.randomUUID(),
           nombre: editableCmd.nombre.trim(),
-          cantidad: editableCmd.cantidad || 1,
-          unidad: editableCmd.unidad || 'Kg',
+          tipo: isAccion ? 'accion' : 'elaboracion',
+          cantidad: isAccion ? undefined : (editableCmd.cantidad || 1),
+          unidad: isAccion ? undefined : (editableCmd.unidad || 'Kg'),
           prioridad: editableCmd.prioridad || 'Media',
           estado: 'Pendiente',
           partida: targetStation
@@ -248,6 +251,7 @@ export function VoiceAssistantModal({ isOpen, onClose, currentStation = 'Saucier
     resetCommand();
     setEditableCmd({
       tipo: 'tarea',
+      tipoTarea: 'elaboracion',
       rawText: '',
       nombre: '',
       cantidad: 1,
@@ -458,11 +462,43 @@ export function VoiceAssistantModal({ isOpen, onClose, currentStation = 'Saucier
             {editableCmd && (
               <div className="w-full mt-3.5 p-3.5 sm:p-4 rounded-2xl bg-stone-950/90 border border-stone-800 shadow-xl space-y-3">
                 
+                {/* Selector Táctil: Acción vs Elaboración (Solo para Mise en Place / Tarea) */}
+                {activeIntent === 'tarea' && (
+                  <div className="p-1 rounded-xl bg-stone-900 border border-stone-800 flex gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => handleUpdateField({ tipoTarea: 'accion' })}
+                      className={`flex-1 min-h-[40px] py-2 px-3 rounded-lg text-xs font-black uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                        editableCmd.tipoTarea === 'accion'
+                          ? 'bg-sky-500 text-stone-950 shadow-md shadow-sky-950/40 scale-[1.01]'
+                          : 'text-stone-400 hover:text-stone-200'
+                      }`}
+                    >
+                      <span>📌 Acción</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleUpdateField({ 
+                        tipoTarea: 'elaboracion',
+                        cantidad: editableCmd.cantidad || 1,
+                        unidad: editableCmd.unidad || 'Kg'
+                      })}
+                      className={`flex-1 min-h-[40px] py-2 px-3 rounded-lg text-xs font-black uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                        editableCmd.tipoTarea !== 'accion'
+                          ? 'bg-amber-500 text-stone-950 shadow-md shadow-amber-950/40 scale-[1.01]'
+                          : 'text-stone-400 hover:text-stone-200'
+                      }`}
+                    >
+                      <span>⚖️ Elaboración</span>
+                    </button>
+                  </div>
+                )}
+
                 {/* 1. Nombre / Elaboración con botón de limpiar */}
                 <div>
                   <div className="flex items-center justify-between mb-1">
                     <label className="text-[10px] uppercase font-bold text-stone-400 tracking-wider">
-                      {activeIntent === 'tarea' && 'Nombre de Elaboración:'}
+                      {activeIntent === 'tarea' && (editableCmd.tipoTarea === 'accion' ? 'Nombre de la Acción:' : 'Nombre de Elaboración:')}
                       {activeIntent === 'compra' && 'Ingrediente a Comprar:'}
                       {activeIntent === 'agotado' && 'Plato / Ingrediente Agotado:'}
                       {activeIntent === 'temporizador' && 'Concepto del Temporizador:'}
@@ -488,7 +524,8 @@ export function VoiceAssistantModal({ isOpen, onClose, currentStation = 'Saucier
                       type="text"
                       value={editableCmd.nombre}
                       placeholder={
-                        activeIntent === 'tarea' ? 'Ej: Cebolla pochada' :
+                        activeIntent === 'tarea' 
+                          ? (editableCmd.tipoTarea === 'accion' ? 'Ej: Cortar verduras para la ensalada' : 'Ej: Fondo Oscuro') :
                         activeIntent === 'compra' ? 'Ej: Nata 35% MG' :
                         activeIntent === 'agotado' ? 'Ej: Lubina salvaje' :
                         'Ej: Fondo de carne'
@@ -499,8 +536,19 @@ export function VoiceAssistantModal({ isOpen, onClose, currentStation = 'Saucier
                   </div>
                 </div>
 
-                {/* 2. Cantidad y Unidad (Para Tarea y Compra) */}
-                {(activeIntent === 'tarea' || activeIntent === 'compra') && (
+                {/* Banner Informativo para Acción Operativa (sin kilos) */}
+                {activeIntent === 'tarea' && editableCmd.tipoTarea === 'accion' && (
+                  <div className="p-3 rounded-xl bg-sky-950/40 border border-sky-500/30 text-sky-200 text-xs flex items-center gap-2.5">
+                    <span className="text-lg">📌</span>
+                    <div>
+                      <span className="font-bold block text-sky-300">Acción Operativa Pura</span>
+                      <span className="text-[11px] text-sky-400/80">Sin kilos ni números asignados. Lista para ejecución inmediata.</span>
+                    </div>
+                  </div>
+                )}
+
+                {/* 2. Cantidad y Unidad (Para Elaboración Pesada y Compra) */}
+                {((activeIntent === 'tarea' && editableCmd.tipoTarea !== 'accion') || activeIntent === 'compra') && (
                   <div className="p-2.5 rounded-xl bg-stone-900/60 border border-stone-800/80 space-y-2">
                     <div className="flex items-center justify-between gap-3">
                       <span className="text-[10px] uppercase font-bold text-stone-400 tracking-wider">

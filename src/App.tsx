@@ -23,7 +23,11 @@ import {
   Mic,
   ChefHat,
   Plus,
-  ShieldCheck 
+  ShieldCheck,
+  AlertOctagon,
+  Share2,
+  Check,
+  CheckCircle2
 } from 'lucide-react';
 import { KanbanBoard } from './components/KanbanBoard';
 import { LogisticsDrawer } from './components/LogisticsDrawer';
@@ -226,6 +230,9 @@ export default function App() {
     nombreRestaurante,
     temporizadores,
     agotados86,
+    marcarAgotado86,
+    quitarAgotado86,
+    vaciarAgotados86,
     isChefMode,
     toggleChefMode,
     pinJefe,
@@ -255,7 +262,41 @@ export default function App() {
   // Station Manager Modal
   const [showStationManager, setShowStationManager] = useState(false);
   
+  // 86 (Platos Agotados) State in Logística
+  const [nombre86, setNombre86] = useState('');
+  const [partida86, setPartida86] = useState('');
+  const [motivo86, setMotivo86] = useState('');
+  const [copied86, setCopied86] = useState(false);
+
   const { isDark, toggleTheme } = useTheme();
+
+  const handleAdd86 = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!nombre86.trim()) return;
+    marcarAgotado86(nombre86.trim(), partida86 || partidas[0] || 'Cocina', motivo86.trim() || undefined);
+    setNombre86('');
+    setMotivo86('');
+  };
+
+  const handleWhatsApp86 = () => {
+    if (agotados86.length === 0) return;
+    const dateStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    let text = `🚨 *AVISO DE SALA - PLATOS AGOTADOS (FUERA DE CARTA)* [${dateStr}]\n`;
+    text += `Los siguientes platos/ingredientes NO están disponibles:\n\n`;
+    agotados86.forEach((item, idx) => {
+      text += `${idx + 1}. *${item.nombre}* (${item.partida})${item.motivo ? ` - ${item.motivo}` : ''} [Agotado a las ${item.hora}]\n`;
+    });
+    text += `\n⚠️ Por favor, informar al equipo de camareros inmediatamente.`;
+
+    const waUrl = `https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`;
+    window.open(waUrl, '_blank');
+
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(text);
+      setCopied86(true);
+      setTimeout(() => setCopied86(false), 2500);
+    }
+  };
 
   // Tick for real-time header KPIs (timers expiration)
   const [, setTick] = useState(0);
@@ -283,11 +324,11 @@ export default function App() {
     <div className={`min-h-screen flex flex-col font-sans transition-colors duration-300 pb-[env(safe-area-inset-bottom)] ${
       isDark ? 'bg-[#0b0f19] text-slate-100' : 'bg-[#fcfaf6] text-stone-900'
     }`}>
-      {/* Apple Glass Sticky Header */}
-      <header className={`sticky top-0 z-40 backdrop-blur-2xl transition-all duration-300 pt-[env(safe-area-inset-top)] ${
+      {/* Apple Solid Sticky Header */}
+      <header className={`sticky top-0 z-40 transition-all duration-300 pt-[env(safe-area-inset-top)] ${
         isDark
-          ? 'bg-slate-950/75 border-b border-slate-800/60 shadow-lg shadow-black/20'
-          : 'bg-white/75 border-b border-stone-200/60 shadow-sm'
+          ? 'bg-[#0f172a] border-b border-slate-800 shadow-md shadow-black/30'
+          : 'bg-white border-b border-stone-300 shadow-xs'
       }`}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 h-16 sm:h-20 flex items-center justify-between gap-3">
           {/* Brand & Shift Info */}
@@ -321,7 +362,7 @@ export default function App() {
           {/* Quick Header Actions */}
           <div className="flex items-center gap-2">
             {/* Live KPI status badge */}
-            <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-xl border backdrop-blur-md bg-stone-100/60 dark:bg-slate-900/60 border-stone-200/80 dark:border-slate-800/80">
+            <div className="hidden sm:flex items-center gap-2.5 px-3.5 py-1.5 rounded-xl border bg-[#f8fafc] dark:bg-[#1e293b] border-stone-300 dark:border-slate-700 shadow-xs">
               {tareasCriticas > 0 && (
                 <span className="flex items-center gap-1 text-xs font-black text-red-500 animate-pulse">
                   <span className="w-2 h-2 rounded-full bg-red-500" />
@@ -513,9 +554,9 @@ export default function App() {
                 ) : (
                   <div className="flex-1 min-h-[60vh] grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 sm:gap-6 items-start">
                     {partidas.map(station => (
-                      <div key={station} className="flex flex-col h-full bg-white/60 dark:bg-slate-900/40 backdrop-blur-xl rounded-3xl border border-stone-200/80 dark:border-slate-800/80 overflow-hidden shadow-lg shadow-amber-900/5 dark:shadow-xl dark:shadow-black/40">
-                        <div className="p-4 border-b border-stone-200/80 dark:border-slate-800/80 bg-stone-50/70 dark:bg-slate-950/50 flex items-center justify-between">
-                          <h3 className="font-bold text-stone-900 dark:text-slate-100 uppercase tracking-wider text-sm">
+                      <div key={station} className="flex flex-col h-full bg-white dark:bg-[#0f172a] rounded-3xl border border-stone-300 dark:border-slate-800 overflow-hidden shadow-lg shadow-black/5 dark:shadow-black/40">
+                        <div className="p-4 border-b border-stone-300 dark:border-slate-800 bg-[#f8fafc] dark:bg-[#1e293b] flex items-center justify-between">
+                          <h3 className="font-black text-stone-900 dark:text-white uppercase tracking-wider text-sm">
                             {station}
                           </h3>
                           <span className={`font-black text-xs py-0.5 px-2.5 rounded-full ${getStationConfig(station, coloresPartidas[station]).column.countBadge}`}>
@@ -558,68 +599,222 @@ export default function App() {
 
         {/* Tab 4: LOGÍSTICA & 86 (COMPRAS Y AGOTADOS) */}
         {activeTab === 'logistica' && (
-          <div className="flex flex-col gap-6">
-            <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex flex-col gap-6 animate-in fade-in duration-300">
+            {/* Top Header */}
+            <div className={`p-5 rounded-3xl border flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-sm ${
+              isDark ? 'bg-[#0f172a] border-slate-800' : 'bg-white border-stone-300'
+            }`}>
               <div>
-                <h2 className="text-2xl font-serif font-bold text-stone-900 dark:text-white">
-                  Logística y Stock Crítico
-                </h2>
-                <p className="text-xs uppercase tracking-wider font-semibold text-stone-500 dark:text-slate-400">
-                  Control de ingredientes agotados y lista de pedidos
+                <div className="flex items-center gap-2.5">
+                  <div className="w-10 h-10 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-500 flex items-center justify-center font-black">
+                    <Package className="w-5 h-5 stroke-[2.5]" />
+                  </div>
+                  <h2 className="text-xl sm:text-2xl font-serif font-black text-stone-900 dark:text-white">
+                    Logística, Fuera de Carta & Compras
+                  </h2>
+                </div>
+                <p className="text-xs sm:text-sm font-semibold text-stone-600 dark:text-slate-300 mt-1">
+                  Control centralizado de ingredientes agotados (86), comunicación con sala y pedidos de la brigada.
                 </p>
               </div>
 
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2.5 flex-wrap">
                 <button
                   onClick={() => {
                     analizarEscandallo();
                     setDrawerOpen(true);
                   }}
                   disabled={analizandoIA}
-                  className="px-4 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-stone-950 font-bold text-xs uppercase tracking-wider flex items-center gap-2 shadow-sm transition-all cursor-pointer disabled:opacity-50"
+                  className="min-h-[42px] px-4 rounded-xl bg-amber-500 hover:bg-amber-400 text-stone-950 font-black text-xs uppercase tracking-wider flex items-center gap-2 shadow-sm transition-all cursor-pointer disabled:opacity-50 active:scale-95"
                 >
                   {analizandoIA ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
                   <span>{analizandoIA ? 'Analizando...' : 'Escandallo IA'}</span>
                 </button>
+
                 <button
                   onClick={() => setDrawerOpen(true)}
-                  className="px-4 py-2.5 rounded-xl bg-stone-900 dark:bg-slate-800 hover:bg-stone-800 text-white font-bold text-xs uppercase tracking-wider flex items-center gap-2 shadow-sm transition-all cursor-pointer"
+                  className="min-h-[42px] px-4 rounded-xl bg-stone-900 dark:bg-slate-800 hover:bg-stone-800 text-white font-black text-xs uppercase tracking-wider flex items-center gap-2 shadow-sm transition-all cursor-pointer active:scale-95 border border-stone-800 dark:border-slate-700"
                 >
                   <Package className="w-4 h-4" />
                   <span>Ver Compras ({comprasPendientes.length})</span>
                 </button>
+
+                {agotados86.length > 0 && (
+                  <button
+                    onClick={handleWhatsApp86}
+                    className="min-h-[42px] px-4 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs uppercase tracking-wider flex items-center gap-2 shadow-md shadow-emerald-600/20 transition-all cursor-pointer active:scale-95"
+                    title="Avisar a Sala de los platos agotados vía WhatsApp"
+                  >
+                    {copied86 ? <Check className="w-4 h-4 stroke-[3]" /> : <Share2 className="w-4 h-4 stroke-[2.5]" />}
+                    <span>{copied86 ? '¡Copiado!' : 'Informar a Sala (WhatsApp)'}</span>
+                  </button>
+                )}
               </div>
             </div>
 
-            {/* Fuera de Carta / Agotados Section */}
-            <div className="p-6 rounded-3xl border backdrop-blur-xl bg-white/70 dark:bg-slate-900/70 border-stone-200/80 dark:border-slate-800/80 shadow-sm flex flex-col gap-4">
-              <div className="flex items-center justify-between">
-                <h3 className="text-lg font-serif font-bold text-red-600 dark:text-red-400 flex items-center gap-2">
-                  <span className="w-3 h-3 rounded-full bg-red-500 animate-pulse" />
-                  Platos Agotados (Fuera de Carta)
-                </h3>
-                <span className="text-xs font-bold uppercase tracking-wider px-2.5 py-1 rounded-full bg-red-500/15 text-red-600 border border-red-500/20">
-                  {num86} agotados
-                </span>
+            {/* SECCIÓN PLATOS AGOTADOS (86) - Solid High Contrast */}
+            <div className={`p-6 rounded-3xl border flex flex-col gap-5 shadow-sm ${
+              isDark ? 'bg-[#0f172a] border-slate-800' : 'bg-white border-stone-300'
+            }`}>
+              {/* Header de Agotados */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-stone-200 dark:border-slate-800">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-2xl bg-red-500/10 text-red-500 flex items-center justify-center font-black shrink-0 border border-red-500/20">
+                    <AlertOctagon className="w-5 h-5 stroke-[2.5]" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-serif font-bold text-stone-900 dark:text-white flex items-center gap-2">
+                      Platos Agotados / Fuera de Carta (86)
+                    </h3>
+                    <p className="text-xs text-stone-500 dark:text-slate-400 font-medium">
+                      Notifica al instante qué platos o guarniciones no pueden venderse más en este turno.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-black uppercase tracking-wider px-3 py-1 rounded-full bg-red-500/15 text-red-600 dark:text-red-400 border border-red-500/30">
+                    {num86} {num86 === 1 ? 'agotado' : 'agotados'}
+                  </span>
+
+                  {agotados86.length > 0 && (
+                    <>
+                      <button
+                        onClick={() => {
+                          if (!isChefMode) {
+                            const p = prompt("Acción protegida. Introduce el PIN del Jefe:");
+                            if (p !== (pinJefe || "1234")) {
+                              alert("PIN incorrecto.");
+                              return;
+                            }
+                          }
+                          if (confirm("¿Restaurar carta completa y vaciar la lista de platos agotados?")) {
+                            vaciarAgotados86();
+                          }
+                        }}
+                        className={`min-h-[38px] px-3 rounded-xl border text-xs font-bold uppercase transition-all cursor-pointer shadow-xs text-red-500 hover:bg-red-500/10 ${
+                          isDark ? 'border-slate-700 bg-[#1e293b]' : 'border-stone-300 bg-white'
+                        }`}
+                        title="Limpiar toda la lista de agotados"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+
+                      <button
+                        onClick={handleWhatsApp86}
+                        className="min-h-[38px] px-3.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs uppercase tracking-wider flex items-center gap-1.5 transition-all cursor-pointer shadow-sm active:scale-95"
+                      >
+                        {copied86 ? <Check className="w-4 h-4" /> : <Share2 className="w-4 h-4" />}
+                        <span>{copied86 ? 'Copiado' : 'WhatsApp Sala'}</span>
+                      </button>
+                    </>
+                  )}
+                </div>
               </div>
 
+              {/* Formulario Rápido de Agotados */}
+              <form onSubmit={handleAdd86} className={`p-4 sm:p-5 rounded-2xl border flex flex-col gap-3 ${
+                isDark ? 'bg-[#1e293b] border-slate-700' : 'bg-[#f8fafc] border-stone-300'
+              }`}>
+                <span className="text-xs font-black uppercase tracking-wider text-red-600 dark:text-red-400 flex items-center gap-1.5">
+                  <AlertOctagon className="w-3.5 h-3.5" />
+                  Registrar Plato o Ingrediente Agotado
+                </span>
+
+                <div className="grid grid-cols-1 sm:grid-cols-12 gap-3">
+                  <input
+                    type="text"
+                    required
+                    value={nombre86}
+                    onChange={(e) => setNombre86(e.target.value)}
+                    placeholder="Nombre del plato o producto (ej. Chuletón Madurado, Foie Fresco)..."
+                    className={`sm:col-span-6 min-h-[46px] px-3.5 rounded-xl border text-sm font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-red-500 ${
+                      isDark ? 'bg-[#0f172a] border-slate-700 text-white placeholder:text-slate-500' : 'bg-white border-stone-300 text-stone-900'
+                    }`}
+                  />
+
+                  <select
+                    value={partida86 || partidas[0] || 'Cocina'}
+                    onChange={(e) => setPartida86(e.target.value)}
+                    className={`sm:col-span-3 min-h-[46px] px-3 rounded-xl border text-xs font-bold transition-colors focus:outline-none focus:ring-2 focus:ring-red-500 ${
+                      isDark ? 'bg-[#0f172a] border-slate-700 text-white' : 'bg-white border-stone-300 text-stone-900'
+                    }`}
+                  >
+                    {partidas.map(p => (
+                      <option key={p} value={p}>{p}</option>
+                    ))}
+                  </select>
+
+                  <input
+                    type="text"
+                    value={motivo86}
+                    onChange={(e) => setMotivo86(e.target.value)}
+                    placeholder="Motivo (ej. Fin de existencias)..."
+                    className={`sm:col-span-3 min-h-[46px] px-3 rounded-xl border text-xs font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-red-500 ${
+                      isDark ? 'bg-[#0f172a] border-slate-700 text-white placeholder:text-slate-500' : 'bg-white border-stone-300 text-stone-900'
+                    }`}
+                  />
+                </div>
+
+                <div className="flex justify-end mt-1">
+                  <button
+                    type="submit"
+                    disabled={!nombre86.trim()}
+                    className="min-h-[44px] px-6 bg-red-600 hover:bg-red-500 active:bg-red-700 disabled:opacity-50 text-white font-black uppercase tracking-wider text-xs rounded-xl transition-all cursor-pointer flex items-center justify-center gap-2 shadow-md shadow-red-600/20"
+                  >
+                    <AlertOctagon className="w-4 h-4" />
+                    <span>Marcar como Agotado (86)</span>
+                  </button>
+                </div>
+              </form>
+
+              {/* Lista de Platos Agotados */}
               {agotados86.length === 0 ? (
-                <p className="text-sm font-medium text-stone-500 dark:text-slate-400 py-4 text-center">
-                  No hay productos agotados en carta. ¡Todo disponible!
-                </p>
+                <div className={`p-8 rounded-2xl border text-center flex flex-col items-center justify-center gap-2.5 ${
+                  isDark ? 'bg-[#1e293b]/50 border-slate-800' : 'bg-[#f8fafc] border-stone-200'
+                }`}>
+                  <CheckCircle2 className="w-10 h-10 text-emerald-500 opacity-80" />
+                  <div>
+                    <h4 className="font-bold text-stone-900 dark:text-white text-base">
+                      Carta al 100% de Disponibilidad
+                    </h4>
+                    <p className="text-xs font-semibold text-stone-500 dark:text-slate-400 mt-0.5">
+                      No hay productos ni platos marcados como agotados en este momento.
+                    </p>
+                  </div>
+                </div>
               ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
-                  {agotados86.map(item => (
-                    <div key={item.id} className="p-4 rounded-2xl bg-red-500/10 border border-red-500/20 flex flex-col justify-between gap-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
+                  {agotados86.map((item) => (
+                    <div
+                      key={item.id}
+                      className={`p-4 rounded-2xl border-2 flex flex-col justify-between gap-3 transition-all ${
+                        isDark
+                          ? 'bg-red-950/20 border-red-500/40 text-slate-200'
+                          : 'bg-red-50/90 border-red-300 text-stone-900'
+                      }`}
+                    >
                       <div>
-                        <span className="font-bold text-stone-900 dark:text-slate-100 text-base">{item.nombre}</span>
-                        <p className="text-xs text-stone-500 dark:text-slate-400 mt-0.5">{item.partida} • {item.hora}</p>
+                        <div className="flex items-start justify-between gap-2">
+                          <span className="font-black text-base text-red-600 dark:text-red-400 line-through leading-tight">
+                            {item.nombre}
+                          </span>
+                          <span className="text-[0.65rem] px-2 py-0.5 rounded-md font-black uppercase bg-stone-200 dark:bg-slate-800 text-stone-700 dark:text-slate-300 shrink-0">
+                            {item.partida}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2 mt-1.5 text-xs text-stone-600 dark:text-slate-400 font-medium">
+                          <span>Agotado a las {item.hora}</span>
+                          {item.motivo && <span>• {item.motivo}</span>}
+                        </div>
                       </div>
+
                       <button
-                        onClick={() => useBrigadeStore.getState().quitarAgotado86(item.id)}
-                        className="self-start text-xs font-bold text-emerald-600 dark:text-emerald-400 hover:underline cursor-pointer"
+                        onClick={() => quitarAgotado86(item.id)}
+                        className="self-start min-h-[36px] px-3 py-1 rounded-xl text-xs font-black text-emerald-700 dark:text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 transition-colors cursor-pointer flex items-center gap-1.5"
                       >
-                        Restaurar plato a carta
+                        <Check className="w-3.5 h-3.5" />
+                        <span>Restaurar plato a carta</span>
                       </button>
                     </div>
                   ))}
@@ -627,33 +822,58 @@ export default function App() {
               )}
             </div>
 
-            {/* Shopping Preview Block */}
-            <div className="p-6 rounded-3xl border backdrop-blur-xl bg-white/70 dark:bg-slate-900/70 border-stone-200/80 dark:border-slate-800/80 shadow-sm flex flex-col gap-4">
-              <div className="flex items-center justify-between">
-                <h3 className="text-lg font-serif font-bold text-stone-900 dark:text-white flex items-center gap-2">
-                  <Package className="w-5 h-5 text-amber-500" />
-                  Lista de Compras de la Brigada
-                </h3>
+            {/* SECCIÓN COMPRAS DE LA BRIGADA - Solid High Contrast */}
+            <div className={`p-6 rounded-3xl border flex flex-col gap-4 shadow-sm ${
+              isDark ? 'bg-[#0f172a] border-slate-800' : 'bg-white border-stone-300'
+            }`}>
+              <div className="flex items-center justify-between pb-3 border-b border-stone-200 dark:border-slate-800">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-2xl bg-amber-500/10 text-amber-500 flex items-center justify-center font-black shrink-0 border border-amber-500/20">
+                    <Package className="w-5 h-5 stroke-[2.2]" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-serif font-bold text-stone-900 dark:text-white flex items-center gap-2">
+                      Lista de Compras de la Brigada
+                    </h3>
+                    <p className="text-xs text-stone-500 dark:text-slate-400 font-medium">
+                      Pedidos generados por los cocineros desde el Mise en Place.
+                    </p>
+                  </div>
+                </div>
+
                 {comprasPendientes.length > 0 && (
                   <button
                     onClick={() => setDrawerOpen(true)}
-                    className="text-xs font-bold text-amber-600 dark:text-amber-400 hover:underline cursor-pointer"
+                    className="min-h-[38px] px-4 rounded-xl bg-amber-500 hover:bg-amber-400 text-stone-950 font-black text-xs uppercase tracking-wider cursor-pointer transition-transform active:scale-95 shadow-sm flex items-center gap-1.5"
                   >
-                    Abrir pedido completo
+                    <span>Abrir pedido ({comprasPendientes.length})</span>
                   </button>
                 )}
               </div>
 
               {comprasPendientes.length === 0 ? (
-                <p className="text-sm font-medium text-stone-500 dark:text-slate-400 py-4 text-center">
-                  No hay pedidos pendientes. Añade ingredientes desde las tarjetas de elaboración.
-                </p>
+                <div className={`p-8 rounded-2xl border text-center flex flex-col items-center justify-center gap-2 ${
+                  isDark ? 'bg-[#1e293b]/50 border-slate-800' : 'bg-[#f8fafc] border-stone-200'
+                }`}>
+                  <Package className="w-10 h-10 text-stone-400 opacity-60" />
+                  <p className="text-sm font-bold text-stone-600 dark:text-slate-300">
+                    No hay pedidos pendientes de compra.
+                  </p>
+                  <p className="text-xs text-stone-500 dark:text-slate-400">
+                    Añade ingredientes desde las tarjetas de elaboración en Mise en Place o usa el Escandallo IA.
+                  </p>
+                </div>
               ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
-                  {comprasPendientes.slice(0, 6).map(c => (
-                    <div key={c.id} className="p-3.5 rounded-xl bg-stone-100/70 dark:bg-slate-800/60 border border-stone-200/80 dark:border-slate-700/60 flex items-center justify-between">
-                      <span className="font-semibold text-sm text-stone-800 dark:text-slate-200">{c.ingrediente}</span>
-                      <span className="text-xs font-black px-2 py-0.5 rounded-lg bg-amber-500/20 text-amber-700 dark:text-amber-400 border border-amber-500/30">
+                  {comprasPendientes.map(c => (
+                    <div key={c.id} className={`p-4 rounded-2xl border flex items-center justify-between ${
+                      isDark ? 'bg-[#1e293b] border-slate-700' : 'bg-[#f8fafc] border-stone-300'
+                    }`}>
+                      <div className="flex flex-col">
+                        <span className="font-bold text-sm text-stone-900 dark:text-slate-100">{c.ingrediente}</span>
+                        <span className="text-[0.65rem] text-stone-500 dark:text-slate-400 uppercase tracking-wider font-semibold">{c.categoria}</span>
+                      </div>
+                      <span className="text-xs font-black px-2.5 py-1 rounded-lg bg-amber-500/20 text-amber-700 dark:text-amber-400 border border-amber-500/30">
                         x{c.cantidad}
                       </span>
                     </div>
@@ -826,10 +1046,10 @@ export default function App() {
 
       {/* FIXED BOTTOM APP BAR (Navegación Inferior Nativa Apple) */}
       <nav 
-        className={`fixed bottom-0 left-0 right-0 z-40 backdrop-blur-2xl transition-all duration-300 border-t ${
+        className={`fixed bottom-0 left-0 right-0 z-40 transition-all duration-300 border-t ${
           isDark
-            ? 'bg-slate-950/85 border-slate-800/80 shadow-2xl shadow-black/80'
-            : 'bg-white/85 border-stone-200/80 shadow-2xl shadow-stone-900/10'
+            ? 'bg-[#0f172a] border-slate-800 shadow-2xl shadow-black/80'
+            : 'bg-white border-stone-300 shadow-2xl shadow-stone-900/10'
         } pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-2 px-3 sm:px-8 flex items-center justify-around`}
         aria-label="Navegación principal de MisePro"
       >

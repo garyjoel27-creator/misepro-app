@@ -11,11 +11,11 @@ interface ShoppingModalProps {
 
 export function ShoppingModal({ tarea, compact = false }: ShoppingModalProps) {
   const [open, setOpen] = useState(false);
-  const [cantidad, setCantidad] = useState(tarea.cantidad);
+  const [cantidad, setCantidad] = useState<number>(tarea.cantidad || 1);
   const agregarCompra = useBrigadeStore(state => state.agregarCompra);
 
   const handleComprar = () => {
-    if (cantidad <= 0) return;
+    if (!cantidad || cantidad <= 0) return;
     agregarCompra({
       id: Date.now().toString(),
       ingrediente: tarea.nombre,
@@ -26,11 +26,11 @@ export function ShoppingModal({ tarea, compact = false }: ShoppingModalProps) {
   };
 
   const handleIncrement = () => {
-    setCantidad(prev => Number((prev + 1).toFixed(1)));
+    setCantidad(prev => Number(((prev || 1) + 1).toFixed(1)));
   };
 
   const handleDecrement = () => {
-    setCantidad(prev => Math.max(0.5, Number((prev - 1).toFixed(1))));
+    setCantidad(prev => Math.max(0.5, Number(((prev || 1) - 1).toFixed(1))));
   };
 
   return (

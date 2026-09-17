@@ -1,4 +1,4 @@
-// MisePro Service Worker - Version 2.4.0-settings-fix-and-appcc-export
+// MisePro Service Worker - Version 2.5.0-kds-redesign-and-semantic-voice
 self.addEventListener('install', (event) => {
   self.skipWaiting();
 });

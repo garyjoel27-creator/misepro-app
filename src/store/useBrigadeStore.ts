@@ -10,8 +10,9 @@ export interface TurnoData {
 export interface Tarea {
   id: string;
   nombre: string;
-  cantidad: number;
-  unidad: string;
+  cantidad?: number;
+  unidad?: string;
+  tipo?: 'accion' | 'elaboracion';
   prioridad: 'Critica' | 'Media' | 'Baja';
   estado: 'Pendiente' | 'En Proceso' | 'Completado';
   partida: string;
@@ -257,11 +258,11 @@ export const useBrigadeStore = create<BrigadeState>((setStore, getStore) => ({
   analizandoIA: false,
   procesosHabituales: PROCESOS_HABITUALES_INICIALES,
   kanbanTareas: [
-    { id: '1', nombre: 'Fondo Oscuro', cantidad: 10, unidad: 'Litros', prioridad: 'Critica', estado: 'Pendiente', partida: 'Saucier' },
-    { id: '2', nombre: 'Beurre Blanc', cantidad: 2, unidad: 'Litros', prioridad: 'Media', estado: 'En Proceso', partida: 'Saucier' },
-    { id: '3', nombre: 'Mirepoix', cantidad: 5, unidad: 'Kg', prioridad: 'Baja', estado: 'Completado', partida: 'Garde Manger' },
-    { id: '4', nombre: 'Despiece Solomillo', cantidad: 8, unidad: 'Kg', prioridad: 'Critica', estado: 'Pendiente', partida: 'Carnes' },
-    { id: '5', nombre: 'Limpieza Merluza', cantidad: 5, unidad: 'Kg', prioridad: 'Media', estado: 'Pendiente', partida: 'Pescados' }
+    { id: '1', nombre: 'Fondo Oscuro', cantidad: 10, unidad: 'Litros', tipo: 'elaboracion', prioridad: 'Critica', estado: 'Pendiente', partida: 'Saucier' },
+    { id: '2', nombre: 'Beurre Blanc', cantidad: 2, unidad: 'Litros', tipo: 'elaboracion', prioridad: 'Media', estado: 'En Proceso', partida: 'Saucier' },
+    { id: '3', nombre: 'Cortar verduras para ensalada', tipo: 'accion', prioridad: 'Baja', estado: 'Completado', partida: 'Garde Manger' },
+    { id: '4', nombre: 'Despiece Solomillo', cantidad: 8, unidad: 'Kg', tipo: 'elaboracion', prioridad: 'Critica', estado: 'Pendiente', partida: 'Carnes' },
+    { id: '5', nombre: 'Limpieza Merluza', tipo: 'accion', prioridad: 'Media', estado: 'Pendiente', partida: 'Pescados' }
   ],
   comprasPendientes: [],
   modoServicio: false,
@@ -964,7 +965,7 @@ export const useBrigadeStore = create<BrigadeState>((setStore, getStore) => ({
     texto += `*⚠️ TAREAS PENDIENTES (${noCompletadas.length}):*\n`;
     if (noCompletadas.length > 0) {
       noCompletadas.forEach(t => {
-        texto += `- [${t.partida}] ${t.nombre} (${t.cantidad} ${t.unidad}) [${t.estado}]\n`;
+        texto += `- [${t.partida}] ${t.nombre}${t.cantidad ? ` (${t.cantidad} ${t.unidad || 'Kg'})` : ' [Acción]'} [${t.estado}]\n`;
       });
     } else {
       texto += `- Ninguna\n`;
