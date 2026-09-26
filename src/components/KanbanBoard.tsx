@@ -158,23 +158,23 @@ export function KanbanBoard({ partida, masterMode = false }: KanbanBoardProps) {
 
     return (
       <div className="flex flex-col gap-4 w-full text-left">
-        {/* Thumb-friendly Segmented Status Bar (min-h-[48px] touch targets) */}
-        <div className="grid grid-cols-4 gap-1.5 p-1.5 bg-stone-100 dark:bg-[#0f172a] border-2 border-stone-300 dark:border-slate-700 rounded-2xl shadow-md">
+        {/* Thumb-friendly Segmented Status Bar (GastroCost PRO Luxury Standard) */}
+        <div className="grid grid-cols-4 gap-1.5 p-1.5 bg-stone-100 dark:bg-[#0c1019] border border-stone-300 dark:border-[rgba(212,175,55,0.18)] rounded-2xl shadow-sm">
           <button
             type="button"
             onClick={() => setActiveMobileTab('Pendiente')}
             className={`min-h-[50px] py-1.5 px-1 flex flex-col items-center justify-center gap-1 rounded-xl font-bold text-xs transition-all border cursor-pointer active:scale-95 ${
               activeMobileTab === 'Pendiente'
-                ? 'bg-amber-500 text-stone-950 border-amber-400 font-black shadow-sm'
-                : 'bg-white text-stone-700 dark:bg-[#1e293b] dark:text-slate-300 border-stone-300 dark:border-slate-700 hover:bg-stone-50 dark:hover:bg-slate-800'
+                ? 'bg-gradient-to-tr from-amber-500 to-amber-400 text-stone-950 border-[#fce082] font-black shadow-[0_2px_12px_rgba(212,175,55,0.3)]'
+                : 'bg-white text-stone-700 dark:bg-[#131926] dark:text-[#8494b4] border-stone-200 dark:border-[rgba(255,255,255,0.06)] hover:bg-stone-50 dark:hover:bg-[#182032]'
             }`}
           >
             <div className="flex items-center gap-1">
               {getStatusIcon('Pendiente')}
               <span className="text-[10px] sm:text-xs font-bold uppercase tracking-tight">Pend.</span>
             </div>
-            <span className={`px-2 py-0.5 rounded-full text-[0.7rem] font-black border ${
-              activeMobileTab === 'Pendiente' ? 'bg-stone-950 text-amber-400 border-amber-400' : 'bg-stone-100 text-stone-700 dark:bg-slate-800 dark:text-slate-300 border-stone-300 dark:border-slate-700'
+            <span className={`px-2 py-0.5 rounded-full font-mono text-[0.7rem] font-bold border ${
+              activeMobileTab === 'Pendiente' ? 'bg-stone-950 text-amber-400 border-amber-400/60' : 'bg-stone-100 text-stone-700 dark:bg-[#0c1019] dark:text-slate-300 border-stone-300 dark:border-slate-800'
             }`}>
               {pendientesCount}
             </span>
@@ -185,16 +185,16 @@ export function KanbanBoard({ partida, masterMode = false }: KanbanBoardProps) {
             onClick={() => setActiveMobileTab('En Proceso')}
             className={`min-h-[50px] py-1.5 px-1 flex flex-col items-center justify-center gap-1 rounded-xl font-bold text-xs transition-all border cursor-pointer active:scale-95 ${
               activeMobileTab === 'En Proceso'
-                ? 'bg-amber-500 text-stone-950 border-amber-400 font-black shadow-sm'
-                : 'bg-white text-stone-700 dark:bg-[#1e293b] dark:text-slate-300 border-stone-300 dark:border-slate-700 hover:bg-stone-50 dark:hover:bg-slate-800'
+                ? 'bg-gradient-to-tr from-amber-500 to-amber-400 text-stone-950 border-[#fce082] font-black shadow-[0_2px_12px_rgba(212,175,55,0.3)]'
+                : 'bg-white text-stone-700 dark:bg-[#131926] dark:text-[#8494b4] border-stone-200 dark:border-[rgba(255,255,255,0.06)] hover:bg-stone-50 dark:hover:bg-[#182032]'
             }`}
           >
             <div className="flex items-center gap-1">
               {getStatusIcon('En Proceso')}
               <span className="text-[10px] sm:text-xs font-bold uppercase tracking-tight">Proc.</span>
             </div>
-            <span className={`px-2 py-0.5 rounded-full text-[0.7rem] font-black border ${
-              activeMobileTab === 'En Proceso' ? 'bg-stone-950 text-amber-400 border-amber-400' : 'bg-stone-100 text-stone-700 dark:bg-slate-800 dark:text-slate-300 border-stone-300 dark:border-slate-700'
+            <span className={`px-2 py-0.5 rounded-full font-mono text-[0.7rem] font-bold border ${
+              activeMobileTab === 'En Proceso' ? 'bg-stone-950 text-amber-400 border-amber-400/60' : 'bg-stone-100 text-stone-700 dark:bg-[#0c1019] dark:text-slate-300 border-stone-300 dark:border-slate-800'
             }`}>
               {enProcesoCount}
             </span>
@@ -205,16 +205,16 @@ export function KanbanBoard({ partida, masterMode = false }: KanbanBoardProps) {
             onClick={() => setActiveMobileTab('Completado')}
             className={`min-h-[50px] py-1.5 px-1 flex flex-col items-center justify-center gap-1 rounded-xl font-bold text-xs transition-all border cursor-pointer active:scale-95 ${
               activeMobileTab === 'Completado'
-                ? 'bg-amber-500 text-stone-950 border-amber-400 font-black shadow-sm'
-                : 'bg-white text-stone-700 dark:bg-[#1e293b] dark:text-slate-300 border-stone-300 dark:border-slate-700 hover:bg-stone-50 dark:hover:bg-slate-800'
+                ? 'bg-gradient-to-tr from-amber-500 to-amber-400 text-stone-950 border-[#fce082] font-black shadow-[0_2px_12px_rgba(212,175,55,0.3)]'
+                : 'bg-white text-stone-700 dark:bg-[#131926] dark:text-[#8494b4] border-stone-200 dark:border-[rgba(255,255,255,0.06)] hover:bg-stone-50 dark:hover:bg-[#182032]'
             }`}
           >
             <div className="flex items-center gap-1">
               {getStatusIcon('Completado')}
               <span className="text-[10px] sm:text-xs font-bold uppercase tracking-tight">Listo</span>
             </div>
-            <span className={`px-2 py-0.5 rounded-full text-[0.7rem] font-black border ${
-              activeMobileTab === 'Completado' ? 'bg-stone-950 text-amber-400 border-amber-400' : 'bg-stone-100 text-stone-700 dark:bg-slate-800 dark:text-slate-300 border-stone-300 dark:border-slate-700'
+            <span className={`px-2 py-0.5 rounded-full font-mono text-[0.7rem] font-bold border ${
+              activeMobileTab === 'Completado' ? 'bg-stone-950 text-amber-400 border-amber-400/60' : 'bg-stone-100 text-stone-700 dark:bg-[#0c1019] dark:text-slate-300 border-stone-300 dark:border-slate-800'
             }`}>
               {completadoCount}
             </span>
@@ -225,16 +225,16 @@ export function KanbanBoard({ partida, masterMode = false }: KanbanBoardProps) {
             onClick={() => setActiveMobileTab('Todas')}
             className={`min-h-[50px] py-1.5 px-1 flex flex-col items-center justify-center gap-1 rounded-xl font-bold text-xs transition-all border cursor-pointer active:scale-95 ${
               activeMobileTab === 'Todas'
-                ? 'bg-amber-500 text-stone-950 border-amber-400 font-black shadow-sm'
-                : 'bg-white text-stone-700 dark:bg-[#1e293b] dark:text-slate-300 border-stone-300 dark:border-slate-700 hover:bg-stone-50 dark:hover:bg-slate-800'
+                ? 'bg-gradient-to-tr from-amber-500 to-amber-400 text-stone-950 border-[#fce082] font-black shadow-[0_2px_12px_rgba(212,175,55,0.3)]'
+                : 'bg-white text-stone-700 dark:bg-[#131926] dark:text-[#8494b4] border-stone-200 dark:border-[rgba(255,255,255,0.06)] hover:bg-stone-50 dark:hover:bg-[#182032]'
             }`}
           >
             <div className="flex items-center gap-1">
               {getStatusIcon('Todas')}
               <span className="text-[10px] sm:text-xs font-bold uppercase tracking-tight">Todas</span>
             </div>
-            <span className={`px-2 py-0.5 rounded-full text-[0.7rem] font-black border ${
-              activeMobileTab === 'Todas' ? 'bg-stone-950 text-amber-400 border-amber-400' : 'bg-stone-100 text-stone-700 dark:bg-slate-800 dark:text-slate-300 border-stone-300 dark:border-slate-700'
+            <span className={`px-2 py-0.5 rounded-full font-mono text-[0.7rem] font-bold border ${
+              activeMobileTab === 'Todas' ? 'bg-stone-950 text-amber-400 border-amber-400/60' : 'bg-stone-100 text-stone-700 dark:bg-[#0c1019] dark:text-slate-300 border-stone-300 dark:border-slate-800'
             }`}>
               {tareasDePartida.length}
             </span>

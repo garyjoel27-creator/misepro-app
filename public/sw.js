@@ -1,4 +1,4 @@
-// MisePro Service Worker - Version 2.6.0-prune-dead-code-and-safe-cards
+// MisePro Service Worker - Version 2.7.0-gastrocost-luxury-mobile-ux
 self.addEventListener('install', (event) => {
   self.skipWaiting();
 });

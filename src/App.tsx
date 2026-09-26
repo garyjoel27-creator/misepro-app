@@ -307,92 +307,103 @@ export default function App() {
     <div className={`min-h-screen flex flex-col font-sans transition-colors duration-300 pb-[env(safe-area-inset-bottom)] ${
       isDark ? 'bg-[#0b0f19] text-slate-100' : 'bg-[#fcfaf6] text-stone-900'
     }`}>
-      {/* Apple Solid Sticky Header */}
+      {/* Apple Solid Sticky Header with GastroCost PRO Luxury Identity */}
       <header className={`sticky top-0 z-40 transition-all duration-300 pt-[env(safe-area-inset-top)] ${
         isDark
-          ? 'bg-[#0f172a] border-b border-slate-800 shadow-md shadow-black/30'
-          : 'bg-white border-b border-stone-300 shadow-xs'
+          ? 'bg-[#0c1019]/90 backdrop-blur-xl border-b border-[rgba(212,175,55,0.16)] shadow-lg shadow-black/40'
+          : 'bg-[#ffffff]/90 backdrop-blur-xl border-b border-[rgba(120,53,15,0.12)] shadow-xs'
       }`}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 h-16 sm:h-20 flex items-center justify-between gap-3">
           {/* Brand & Shift Info */}
           <div className="flex items-center gap-3">
-            <div className={`w-9 h-9 sm:w-10 sm:h-10 rounded-2xl flex items-center justify-center shrink-0 transition-colors shadow-sm ${
+            <div className={`w-10 h-10 sm:w-11 sm:h-11 rounded-2xl flex items-center justify-center shrink-0 transition-all shadow-sm ${
               isDark
-                ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
+                ? 'bg-gradient-to-b from-amber-500/20 to-amber-500/5 text-amber-400 border border-amber-500/30 shadow-[0_0_15px_rgba(212,175,55,0.15)]'
                 : 'bg-stone-900 text-amber-400 border border-stone-800'
             }`}>
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M2 21l3-3M22 3c-4.5 0-9.5 2-12 7l-5 5c-1 1-1 3 0 4s3 1 4 0l5-5c5-2.5 7-7.5 7-12z" />
-              </svg>
+              <ChefHat className="w-5 h-5 sm:w-6 sm:h-6 stroke-[1.8] text-amber-400" />
             </div>
             <div className="flex flex-col justify-center">
               <div className="flex items-center gap-2">
-                <h1 className="text-2xl sm:text-3xl font-serif tracking-widest font-bold text-amber-500 leading-none">
+                <h1 className="text-xl sm:text-2xl font-serif tracking-widest font-black gold-gradient-text leading-none">
                   MISE·PRO
                 </h1>
               </div>
               <span
-                className="text-[10px] uppercase tracking-widest text-stone-400 dark:text-slate-400 font-bold truncate max-w-[140px] sm:max-w-[220px] text-left"
+                className="text-[10px] font-mono uppercase tracking-widest text-stone-500 dark:text-[#8494b4] font-semibold truncate max-w-[130px] sm:max-w-[220px] text-left mt-0.5"
               >
-                {nombreRestaurante || 'Mi Cocina Pro'}
+                {nombreRestaurante || 'Brigade Sync Executive'}
               </span>
             </div>
           </div>
           
           {/* Quick Header Actions */}
           <div className="flex items-center gap-2">
-            {/* Live KPI status badge */}
-            <div className="hidden sm:flex items-center gap-2.5 px-3.5 py-1.5 rounded-xl border bg-[#f8fafc] dark:bg-[#1e293b] border-stone-300 dark:border-slate-700 shadow-xs">
+            {/* Live KPI status badge (Desktop & Tablet) */}
+            <div className="hidden sm:flex items-center gap-2.5 px-3 py-1.5 rounded-xl border bg-black/5 dark:bg-[#131926]/90 border-stone-300 dark:border-[rgba(212,175,55,0.18)] shadow-xs font-mono">
               {tareasCriticas > 0 && (
-                <span className="flex items-center gap-1 text-xs font-black text-red-500 animate-pulse">
+                <span className="flex items-center gap-1 text-xs font-bold text-red-500 animate-pulse">
                   <span className="w-2 h-2 rounded-full bg-red-500" />
                   {tareasCriticas} crít.
                 </span>
               )}
               {num86 > 0 && (
-                <span className="text-xs font-bold text-amber-500">
+                <span className="text-xs font-semibold text-amber-500">
                   {num86} agotados
                 </span>
               )}
               {numTimersTotal > 0 && (
-                <span className={`text-xs font-bold ${numTimersExpirados > 0 ? 'text-red-500 font-black animate-pulse' : 'text-emerald-500'}`}>
+                <span className={`text-xs font-bold ${numTimersExpirados > 0 ? 'text-red-500 font-bold animate-pulse' : 'text-emerald-400'}`}>
                   ⏱️ {numTimersTotal}
                 </span>
               )}
               {tareasCriticas === 0 && num86 === 0 && numTimersTotal === 0 && (
-                <span className="text-xs font-semibold text-stone-400 dark:text-slate-500">
-                  Operativa en orden
+                <span className="text-[11px] font-medium text-stone-400 dark:text-[#8494b4]">
+                  Operativa 100%
                 </span>
               )}
             </div>
 
             <ServiceCountdown />
 
-            {/* Quick Voice Commander Button */}
-            <button
-              onClick={() => setShowVoiceModal(true)}
-              className="min-h-[40px] px-3 rounded-xl border border-amber-500/50 bg-gradient-to-r from-amber-500/20 to-amber-500/10 hover:from-amber-500/30 hover:to-amber-500/20 text-amber-600 dark:text-amber-400 flex items-center gap-1.5 text-xs font-black transition-all cursor-pointer shadow-xs active:scale-95 ring-1 ring-amber-500/30"
-              title="Asistente de Voz Manos Libres"
-            >
-              <Mic className="w-4 h-4 text-amber-500 animate-pulse" />
-              <span className="hidden sm:inline">Voz</span>
-            </button>
-
             {/* Quick Zen Mode Button */}
             <button
               onClick={toggleModoZen}
-              className="min-h-[40px] px-3 rounded-xl border border-stone-300/80 dark:border-slate-700/80 bg-stone-100/70 dark:bg-slate-900/70 hover:bg-amber-500 hover:text-stone-950 text-stone-700 dark:text-slate-200 flex items-center gap-1.5 text-xs font-bold transition-all cursor-pointer shadow-xs active:scale-95"
+              className="min-h-[40px] px-2.5 sm:px-3 rounded-xl border border-stone-300/80 dark:border-slate-800 bg-stone-100/70 dark:bg-[#131926] hover:border-amber-500/50 hover:text-amber-400 text-stone-700 dark:text-slate-300 flex items-center gap-1.5 text-xs font-bold transition-all cursor-pointer shadow-xs active:scale-95"
               title="Modo Zen (Solo alarmas en pantalla completa)"
             >
               <Eye className="w-4 h-4" />
-              <span className="hidden md:inline">Zen</span>
+              <span className="hidden md:inline font-mono">Zen</span>
+            </button>
+
+            {/* Quick Theme Switch */}
+            <button
+              onClick={toggleTheme}
+              className="min-h-[40px] w-10 sm:w-auto sm:px-3 rounded-xl border border-stone-300/80 dark:border-slate-800 bg-stone-100/70 dark:bg-[#131926] hover:border-amber-500/50 hover:text-amber-400 text-stone-700 dark:text-slate-300 flex items-center justify-center gap-1.5 text-xs font-bold transition-all cursor-pointer shadow-xs active:scale-95"
+              title="Cambiar tema de color"
+            >
+              {isDark ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4 text-stone-700" />}
+            </button>
+
+            {/* Direct Settings Access */}
+            <button
+              onClick={() => setActiveTab('ajustes')}
+              className={`min-h-[40px] w-10 sm:w-auto sm:px-3 rounded-xl border flex items-center justify-center gap-1.5 text-xs font-bold transition-all cursor-pointer shadow-xs active:scale-95 ${
+                activeTab === 'ajustes'
+                  ? 'border-amber-500 bg-amber-500/10 text-amber-400 ring-1 ring-amber-500/30'
+                  : 'border-stone-300/80 dark:border-slate-800 bg-stone-100/70 dark:bg-[#131926] text-stone-700 dark:text-slate-300 hover:border-amber-500/50 hover:text-amber-400'
+              }`}
+              title="Ajustes del Restaurante y PIN Chef"
+            >
+              <Settings className="w-4 h-4" />
+              <span className="hidden lg:inline font-mono">Ajustes</span>
             </button>
           </div>
         </div>
       </header>
 
-      {/* Main Content Area (with bottom padding to prevent overlap with Bottom App Bar) */}
-      <main className="flex-1 max-w-7xl mx-auto w-full p-3 sm:p-6 pb-28 flex flex-col">
+      {/* Main Content Area (with bottom padding to prevent overlap with Bottom Dock) */}
+      <main className="flex-1 max-w-7xl mx-auto w-full p-3 sm:p-6 pb-32 sm:pb-28 flex flex-col">
 
         {/* Tab 1: MISE EN PLACE (PREP) */}
         {activeTab === 'prep' && (
@@ -958,112 +969,100 @@ export default function App() {
       {/* Logistics & Shopping Side Drawer */}
       <LogisticsDrawer open={drawerOpen} onOpenChange={setDrawerOpen} />
 
-      {/* Floating Action Button for Task Creation (Elevated above Bottom Bar) */}
+      {/* Floating Action Button for Task Creation (Elevated above Bottom Dock) */}
       {activeTab === 'prep' && (
-        <div className="fixed bottom-24 right-5 z-40">
+        <div className="fixed bottom-24 right-4 sm:bottom-8 sm:right-8 z-30 transition-transform active:scale-95">
           <CreateTaskModal partidaActual={partidas[0] || 'Saucier'} />
         </div>
       )}
 
-      {/* FIXED BOTTOM APP BAR (Navegación Inferior Nativa Apple) */}
+      {/* GASTROCOST PRO STYLE GLASSMORPHIC BOTTOM DOCK */}
       <nav 
         className={`fixed bottom-0 left-0 right-0 z-40 transition-all duration-300 border-t ${
           isDark
-            ? 'bg-[#0f172a] border-slate-800 shadow-2xl shadow-black/80'
-            : 'bg-white border-stone-300 shadow-2xl shadow-stone-900/10'
-        } pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-2 px-3 sm:px-8 flex items-center justify-around`}
+            ? 'bg-[#0c1019]/92 backdrop-blur-2xl border-[rgba(212,175,55,0.18)] shadow-[0_-4px_30px_rgba(0,0,0,0.7)]'
+            : 'bg-[#ffffff]/95 backdrop-blur-2xl border-[rgba(120,53,15,0.14)] shadow-[0_-4px_20px_rgba(0,0,0,0.06)]'
+        } pb-[calc(10px+env(safe-area-inset-bottom,16px))] pt-2 px-2 sm:px-8 flex items-center justify-around max-w-4xl mx-auto sm:rounded-t-3xl`}
         aria-label="Navegación principal de MisePro"
       >
         {/* Tab 1: Prep */}
         <button
           onClick={() => setActiveTab('prep')}
-          className={`flex flex-col items-center justify-center gap-1 min-w-[64px] py-1 px-2 rounded-2xl transition-all cursor-pointer active:scale-95 ${
+          className={`flex flex-col items-center justify-center gap-1 min-w-[56px] py-1 px-1.5 rounded-xl transition-all cursor-pointer active:scale-95 ${
             activeTab === 'prep'
-              ? 'text-amber-500 dark:text-amber-400 font-black'
-              : 'text-stone-400 dark:text-slate-500 hover:text-stone-700 dark:hover:text-slate-300'
+              ? 'text-amber-500 dark:text-amber-400 font-extrabold'
+              : 'text-stone-400 dark:text-[#8494b4] hover:text-stone-700 dark:hover:text-slate-200'
           }`}
         >
           <ClipboardList className={`w-5 h-5 ${activeTab === 'prep' ? 'stroke-[2.5]' : 'stroke-[1.8]'}`} />
-          <span className="text-[0.68rem] tracking-tight">Prep</span>
+          <span className="text-[0.65rem] tracking-tight font-medium uppercase">Prep</span>
         </button>
 
         {/* Tab 2: Pase */}
         <button
           onClick={() => setActiveTab('pase')}
-          className={`relative flex flex-col items-center justify-center gap-1 min-w-[64px] py-1 px-2 rounded-2xl transition-all cursor-pointer active:scale-95 ${
+          className={`relative flex flex-col items-center justify-center gap-1 min-w-[56px] py-1 px-1.5 rounded-xl transition-all cursor-pointer active:scale-95 ${
             activeTab === 'pase'
-              ? 'text-amber-500 dark:text-amber-400 font-black'
-              : 'text-stone-400 dark:text-slate-500 hover:text-stone-700 dark:hover:text-slate-300'
+              ? 'text-amber-500 dark:text-amber-400 font-extrabold'
+              : 'text-stone-400 dark:text-[#8494b4] hover:text-stone-700 dark:hover:text-slate-200'
           }`}
         >
           <Flame className={`w-5 h-5 ${activeTab === 'pase' ? 'stroke-[2.5]' : 'stroke-[1.8]'}`} />
-          <span className="text-[0.68rem] tracking-tight">Pase</span>
+          <span className="text-[0.65rem] tracking-tight font-medium uppercase">Pase</span>
           {numTimersTotal > 0 && (
-            <span className={`absolute top-0 right-3 w-2 h-2 rounded-full ${
+            <span className={`absolute top-0 right-2 w-2 h-2 rounded-full ${
               numTimersExpirados > 0 ? 'bg-red-500 animate-pulse' : 'bg-emerald-500'
             }`} />
           )}
         </button>
 
-        {/* Tab 3: APPCC Sanidad */}
+        {/* Action 3: VOZ CENTRAL DESTACADA (GastroCost PRO Style) */}
+        <button
+          onClick={() => setShowVoiceModal(true)}
+          className="relative -top-3 flex flex-col items-center justify-center cursor-pointer transition-all active:scale-90 group"
+          title="Hablar al Asistente de Voz (Manos Libres)"
+        >
+          <div className="w-13 h-13 rounded-full bg-gradient-to-tr from-amber-500 via-amber-400 to-[#e8cd87] text-stone-950 flex items-center justify-center shadow-[0_4px_22px_rgba(212,175,55,0.45)] border-2 border-[#fce082] group-hover:scale-105 transition-transform">
+            <Mic className="w-6 h-6 stroke-[2.4] text-stone-950" />
+            <span className="absolute -top-0.5 -right-0.5 flex h-3.5 w-3.5">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-3.5 w-3.5 bg-emerald-500"></span>
+            </span>
+          </div>
+          <span className="text-[0.62rem] font-bold uppercase tracking-wider text-amber-500 dark:text-amber-400 mt-0.5">
+            Voz
+          </span>
+        </button>
+
+        {/* Tab 4: APPCC Sanidad */}
         <button
           onClick={() => setActiveTab('appcc')}
-          className={`relative flex flex-col items-center justify-center gap-1 min-w-[56px] py-1 px-1.5 rounded-2xl transition-all cursor-pointer active:scale-95 ${
+          className={`relative flex flex-col items-center justify-center gap-1 min-w-[56px] py-1 px-1.5 rounded-xl transition-all cursor-pointer active:scale-95 ${
             activeTab === 'appcc'
-              ? 'text-amber-500 dark:text-amber-400 font-black'
-              : 'text-stone-400 dark:text-slate-500 hover:text-stone-700 dark:hover:text-slate-300'
+              ? 'text-amber-500 dark:text-amber-400 font-extrabold'
+              : 'text-stone-400 dark:text-[#8494b4] hover:text-stone-700 dark:hover:text-slate-200'
           }`}
         >
           <ShieldCheck className={`w-5 h-5 ${activeTab === 'appcc' ? 'stroke-[2.5]' : 'stroke-[1.8]'}`} />
-          <span className="text-[0.68rem] tracking-tight">APPCC</span>
+          <span className="text-[0.65rem] tracking-tight font-medium uppercase">APPCC</span>
         </button>
 
-        {/* Tab 4: Logística */}
+        {/* Tab 5: Logística */}
         <button
           onClick={() => setActiveTab('logistica')}
-          className={`relative flex flex-col items-center justify-center gap-1 min-w-[64px] py-1 px-2 rounded-2xl transition-all cursor-pointer active:scale-95 ${
+          className={`relative flex flex-col items-center justify-center gap-1 min-w-[56px] py-1 px-1.5 rounded-xl transition-all cursor-pointer active:scale-95 ${
             activeTab === 'logistica'
-              ? 'text-amber-500 dark:text-amber-400 font-black'
-              : 'text-stone-400 dark:text-slate-500 hover:text-stone-700 dark:hover:text-slate-300'
+              ? 'text-amber-500 dark:text-amber-400 font-extrabold'
+              : 'text-stone-400 dark:text-[#8494b4] hover:text-stone-700 dark:hover:text-slate-200'
           }`}
         >
           <Package className={`w-5 h-5 ${activeTab === 'logistica' ? 'stroke-[2.5]' : 'stroke-[1.8]'}`} />
-          <span className="text-[0.68rem] tracking-tight">Logística</span>
+          <span className="text-[0.65rem] tracking-tight font-medium uppercase">Logística</span>
           {(num86 > 0 || comprasPendientes.length > 0) && (
-            <span className="absolute top-0 right-3 w-2 h-2 rounded-full bg-red-500" />
-          )}
-        </button>
-
-        {/* Tab 4: Ajustes */}
-        <button
-          onClick={() => setActiveTab('ajustes')}
-          className={`relative flex flex-col items-center justify-center gap-1 min-w-[64px] py-1 px-2 rounded-2xl transition-all cursor-pointer active:scale-95 ${
-            activeTab === 'ajustes'
-              ? 'text-amber-500 dark:text-amber-400 font-black'
-              : 'text-stone-400 dark:text-slate-500 hover:text-stone-700 dark:hover:text-slate-300'
-          }`}
-        >
-          <Settings className={`w-5 h-5 ${activeTab === 'ajustes' ? 'stroke-[2.5]' : 'stroke-[1.8]'}`} />
-          <span className="text-[0.68rem] tracking-tight">Ajustes</span>
-          {isChefMode && (
-            <span className="absolute top-0 right-3 w-2 h-2 rounded-full bg-emerald-500" />
+            <span className="absolute top-0 right-2 w-2 h-2 rounded-full bg-red-500" />
           )}
         </button>
       </nav>
-
-
-      {/* Floating Action Button (FAB) de Asistente de Voz */}
-      <button
-        onClick={() => setShowVoiceModal(true)}
-        className="fixed bottom-20 right-4 sm:bottom-6 sm:right-6 z-40 w-14 h-14 rounded-full bg-gradient-to-tr from-amber-500 to-amber-400 text-stone-950 shadow-[0_4px_25px_rgba(245,158,11,0.45)] border-2 border-amber-300 flex items-center justify-center cursor-pointer transition-transform hover:scale-105 active:scale-95 group"
-        title="Hablar al Asistente de Voz (Manos Libres)"
-      >
-        <Mic className="w-7 h-7 stroke-[2.2] group-hover:scale-110 transition-transform" />
-        <span className="absolute -top-1 -right-1 flex h-3.5 w-3.5">
-          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-          <span className="relative inline-flex rounded-full h-3.5 w-3.5 bg-emerald-500"></span>
-        </span>
-      </button>
 
       {/* Modal Interactivo de Asistente de Voz */}
       <VoiceAssistantModal
