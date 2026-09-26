@@ -1,4 +1,4 @@
-// MisePro Service Worker - Version 2.5.0-kds-redesign-and-semantic-voice
+// MisePro Service Worker - Version 2.6.0-prune-dead-code-and-safe-cards
 self.addEventListener('install', (event) => {
   self.skipWaiting();
 });

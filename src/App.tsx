@@ -1,9 +1,7 @@
 import { useEffect, useState } from 'react';
-import { useBrigadeStore, type NotaPostIt } from './store/useBrigadeStore';
+import { useBrigadeStore } from './store/useBrigadeStore';
 import * as Tabs from '@radix-ui/react-tabs';
 import { 
-  Sparkles, 
-  Loader2, 
   Sun, 
   Moon, 
   Flame, 
@@ -12,11 +10,9 @@ import {
   Unlock, 
   Eye, 
   Send, 
-  StickyNote, 
   X, 
   Package, 
   Settings, 
-  Pencil, 
   Trash2, 
   BellOff, 
   RotateCcw,
@@ -31,7 +27,6 @@ import {
 } from 'lucide-react';
 import { KanbanBoard } from './components/KanbanBoard';
 import { LogisticsDrawer } from './components/LogisticsDrawer';
-import { SidebarDrawer } from './components/SidebarDrawer';
 import { ShiftSettingsModal } from './components/ShiftSettingsModal';
 import { ServiceCountdown } from './components/ServiceCountdown';
 import { CreateTaskModal } from './components/CreateTaskModal';
@@ -223,8 +218,6 @@ export default function App() {
     kanbanTareas, 
     comprasPendientes, 
     cargarDatos, 
-    analizarEscandallo, 
-    analizandoIA, 
     partidas,
     coloresPartidas,
     nombreRestaurante,
@@ -238,23 +231,13 @@ export default function App() {
     pinJefe,
     modoZen,
     toggleModoZen,
-    cerrarTurno,
-    notasPostIt,
-    agregarNotaPostIt,
-    editarNotaPostIt,
-    eliminarNotaPostIt
+    cerrarTurno
   } = useBrigadeStore();
   
   // Navigation: Bottom App Bar Tabs
   const [activeTab, setActiveTab] = useState<'prep' | 'pase' | 'appcc' | 'logistica' | 'ajustes'>('prep');
   
   const [drawerOpen, setDrawerOpen] = useState(false);
-  
-  // Post-It Modals
-  const [showPostItModal, setShowPostItModal] = useState(false);
-  const [postItText, setPostItText] = useState('');
-  const [editingNote, setEditingNote] = useState<NotaPostIt | null>(null);
-  const [editNoteText, setEditNoteText] = useState('');
   
   // Voice Assistant Modal
   const [showVoiceModal, setShowVoiceModal] = useState(false);
@@ -333,7 +316,6 @@ export default function App() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 h-16 sm:h-20 flex items-center justify-between gap-3">
           {/* Brand & Shift Info */}
           <div className="flex items-center gap-3">
-            <SidebarDrawer />
             <div className={`w-9 h-9 sm:w-10 sm:h-10 rounded-2xl flex items-center justify-center shrink-0 transition-colors shadow-sm ${
               isDark
                 ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
@@ -349,13 +331,11 @@ export default function App() {
                   MISE·PRO
                 </h1>
               </div>
-              <button
-                onClick={() => setShowStationManager(true)}
-                className="text-[10px] uppercase tracking-widest text-stone-400 dark:text-slate-400 font-bold truncate max-w-[140px] sm:max-w-[220px] text-left hover:text-amber-500 transition-colors cursor-pointer"
-                title="Personalizar establecimiento y partidas"
+              <span
+                className="text-[10px] uppercase tracking-widest text-stone-400 dark:text-slate-400 font-bold truncate max-w-[140px] sm:max-w-[220px] text-left"
               >
                 {nombreRestaurante || 'Mi Cocina Pro'}
-              </button>
+              </span>
             </div>
           </div>
           
@@ -398,16 +378,6 @@ export default function App() {
               <span className="hidden sm:inline">Voz</span>
             </button>
 
-            {/* Quick Post-It Button */}
-            <button
-              onClick={() => setShowPostItModal(true)}
-              className="min-h-[40px] px-3 rounded-xl border border-amber-400/40 bg-amber-400/10 hover:bg-amber-400/20 text-amber-600 dark:text-amber-400 flex items-center gap-1.5 text-xs font-bold transition-all cursor-pointer shadow-xs active:scale-95"
-              title="Anotar nota rápida (Post-It)"
-            >
-              <StickyNote className="w-4 h-4" />
-              <span className="hidden md:inline">Nota</span>
-            </button>
-
             {/* Quick Zen Mode Button */}
             <button
               onClick={toggleModoZen}
@@ -423,43 +393,6 @@ export default function App() {
 
       {/* Main Content Area (with bottom padding to prevent overlap with Bottom App Bar) */}
       <main className="flex-1 max-w-7xl mx-auto w-full p-3 sm:p-6 pb-28 flex flex-col">
-        {/* Post-Its rendering (with Edit & Delete) */}
-        {notasPostIt.length > 0 && (
-          <div className="flex flex-wrap gap-3 mb-6">
-            {notasPostIt.map(nota => (
-              <div 
-                key={nota.id} 
-                className="relative group bg-amber-100 dark:bg-amber-300 text-amber-950 p-4 rounded-2xl shadow-md border border-amber-300/80 max-w-xs transition-transform hover:-translate-y-0.5"
-              >
-                {/* Note action buttons (Always accessible for touchscreens) */}
-                <div className="absolute top-2 right-2 flex items-center gap-1">
-                  <button
-                    onClick={() => {
-                      setEditingNote(nota);
-                      setEditNoteText(nota.texto);
-                    }}
-                    className="w-7 h-7 rounded-lg bg-amber-200/80 hover:bg-amber-300 text-amber-900 flex items-center justify-center transition-colors cursor-pointer shadow-xs"
-                    title="Editar nota"
-                  >
-                    <Pencil className="w-3.5 h-3.5" />
-                  </button>
-                  <button 
-                    onClick={() => eliminarNotaPostIt(nota.id)} 
-                    className="w-7 h-7 rounded-lg bg-amber-200/80 hover:bg-red-500 hover:text-white text-amber-900 flex items-center justify-center transition-colors cursor-pointer shadow-xs"
-                    title="Eliminar nota"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-
-                <div className="w-2.5 h-2.5 rounded-full bg-red-500/40 mb-2" />
-                <p className="font-serif text-sm font-medium whitespace-pre-wrap leading-relaxed pr-14">
-                  {nota.texto}
-                </p>
-              </div>
-            ))}
-          </div>
-        )}
 
         {/* Tab 1: MISE EN PLACE (PREP) */}
         {activeTab === 'prep' && (
@@ -619,18 +552,6 @@ export default function App() {
               </div>
 
               <div className="flex items-center gap-2.5 flex-wrap">
-                <button
-                  onClick={() => {
-                    analizarEscandallo();
-                    setDrawerOpen(true);
-                  }}
-                  disabled={analizandoIA}
-                  className="min-h-[42px] px-4 rounded-xl bg-amber-500 hover:bg-amber-400 text-stone-950 font-black text-xs uppercase tracking-wider flex items-center gap-2 shadow-sm transition-all cursor-pointer disabled:opacity-50 active:scale-95"
-                >
-                  {analizandoIA ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
-                  <span>{analizandoIA ? 'Analizando...' : 'Escandallo IA'}</span>
-                </button>
-
                 <button
                   onClick={() => setDrawerOpen(true)}
                   className="min-h-[42px] px-4 rounded-xl bg-stone-900 dark:bg-slate-800 hover:bg-stone-800 text-white font-black text-xs uppercase tracking-wider flex items-center gap-2 shadow-sm transition-all cursor-pointer active:scale-95 border border-stone-800 dark:border-slate-700"
@@ -860,7 +781,7 @@ export default function App() {
                     No hay pedidos pendientes de compra.
                   </p>
                   <p className="text-xs text-stone-500 dark:text-slate-400">
-                    Añade ingredientes desde las tarjetas de elaboración en Mise en Place o usa el Escandallo IA.
+                    Añade ingredientes desde las tarjetas de elaboración en Mise en Place.
                   </p>
                 </div>
               ) : (
@@ -1130,79 +1051,6 @@ export default function App() {
         </button>
       </nav>
 
-      {/* Modal: Crear Nueva Nota Post-It */}
-      {showPostItModal && (
-        <div className="fixed inset-0 z-50 bg-stone-950/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="w-full max-w-sm rounded-3xl p-6 shadow-2xl flex flex-col gap-4 bg-amber-100 border border-amber-300 text-amber-950">
-            <div className="flex justify-between items-center">
-              <h3 className="text-xl font-bold font-serif">📌 Nueva Nota</h3>
-              <button onClick={() => setShowPostItModal(false)} className="p-1 hover:bg-amber-200 rounded-full cursor-pointer">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            <textarea
-              autoFocus
-              rows={4}
-              value={postItText}
-              onChange={(e) => setPostItText(e.target.value)}
-              placeholder="Falta sal, repasar nevera 3, pedir carne..."
-              className="w-full bg-white/70 rounded-2xl p-3 text-sm font-medium border border-amber-300 focus:outline-none focus:ring-2 focus:ring-amber-500 resize-none placeholder:text-amber-700/50"
-            />
-            <button
-              onClick={() => {
-                if (postItText.trim()) {
-                  agregarNotaPostIt(postItText.trim());
-                  setPostItText('');
-                  setShowPostItModal(false);
-                }
-              }}
-              className="min-h-[46px] bg-amber-500 hover:bg-amber-400 font-black text-amber-950 uppercase tracking-widest rounded-xl transition-colors cursor-pointer shadow-sm"
-            >
-              Guardar Nota
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Modal: EDITAR Nota Post-It */}
-      {editingNote && (
-        <div className="fixed inset-0 z-50 bg-stone-950/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="w-full max-w-sm rounded-3xl p-6 shadow-2xl flex flex-col gap-4 bg-amber-100 border border-amber-300 text-amber-950">
-            <div className="flex justify-between items-center">
-              <h3 className="text-xl font-bold font-serif">✏️ Editar Nota</h3>
-              <button onClick={() => setEditingNote(null)} className="p-1 hover:bg-amber-200 rounded-full cursor-pointer">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            <textarea
-              autoFocus
-              rows={4}
-              value={editNoteText}
-              onChange={(e) => setEditNoteText(e.target.value)}
-              className="w-full bg-white/70 rounded-2xl p-3 text-sm font-medium border border-amber-300 focus:outline-none focus:ring-2 focus:ring-amber-500 resize-none"
-            />
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => setEditingNote(null)}
-                className="flex-1 min-h-[46px] bg-amber-200 hover:bg-amber-300 font-bold text-amber-950 uppercase tracking-wider rounded-xl transition-colors cursor-pointer"
-              >
-                Cancelar
-              </button>
-              <button
-                onClick={() => {
-                  if (editNoteText.trim() && editingNote) {
-                    editarNotaPostIt(editingNote.id, editNoteText.trim());
-                    setEditingNote(null);
-                  }
-                }}
-                className="flex-1 min-h-[46px] bg-amber-500 hover:bg-amber-400 font-black text-amber-950 uppercase tracking-wider rounded-xl transition-colors cursor-pointer shadow-sm"
-              >
-                Guardar
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Floating Action Button (FAB) de Asistente de Voz */}
       <button

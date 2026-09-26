@@ -1,5 +1,5 @@
 import * as Dialog from '@radix-ui/react-dialog';
-import { X, ClipboardCheck, Sparkles, CheckCircle2, XCircle, ShoppingBag, Plus } from 'lucide-react';
+import { X, ClipboardCheck, ShoppingBag, Plus } from 'lucide-react';
 import { useBrigadeStore, type Compra } from '../store/useBrigadeStore';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useState } from 'react';
@@ -10,7 +10,7 @@ interface LogisticsDrawerProps {
 }
 
 export function LogisticsDrawer({ open, onOpenChange }: LogisticsDrawerProps) {
-  const { comprasPendientes, vaciarCompras, sugerenciasIA, aceptarSugerencia, descartarSugerencia, analizandoIA, agregarCompra } = useBrigadeStore();
+  const { comprasPendientes, vaciarCompras, agregarCompra } = useBrigadeStore();
   const [nuevoItem, setNuevoItem] = useState('');
 
   const handleAddManual = (e: React.FormEvent) => {
@@ -178,59 +178,6 @@ export function LogisticsDrawer({ open, onOpenChange }: LogisticsDrawerProps) {
                     </button>
                   </form>
 
-                  {analizandoIA && (
-                    <div className="flex flex-col items-center justify-center p-6 bg-gradient-to-br from-amber-400/20 to-amber-500/10 dark:from-amber-400/15 dark:to-slate-900 border border-amber-500/40 rounded-2xl text-amber-900 dark:text-amber-300 backdrop-blur-md shadow-lg">
-                      <Sparkles className="w-8 h-8 animate-spin mb-2 stroke-[2.5]" />
-                      <p className="font-bold uppercase tracking-wider text-sm">Analizando Escandallo con IA...</p>
-                      <span className="text-xs font-medium text-stone-600 dark:text-slate-400 mt-1">Calculando proyecciones de servicio</span>
-                    </div>
-                  )}
-
-                  {!analizandoIA && sugerenciasIA.length > 0 && (
-                    <div className="bg-amber-500/10 dark:bg-amber-950/30 border border-amber-500/30 rounded-2xl p-4 sm:p-5 backdrop-blur-md shadow-md">
-                      <h3 className="font-bold text-amber-900 dark:text-amber-300 uppercase tracking-wider mb-3 flex items-center gap-2 text-sm">
-                        <Sparkles className="w-4 h-4 text-amber-500 stroke-[2.5]" />
-                        Sugerencias de la IA
-                      </h3>
-                      <div className="space-y-3">
-                        {sugerenciasIA.map(sugerencia => (
-                          <div key={sugerencia.id} className="bg-white/90 dark:bg-slate-900/90 p-4 rounded-xl border border-amber-500/20 dark:border-slate-800 shadow-sm flex flex-col gap-2.5">
-                            <div className="flex justify-between items-start gap-2">
-                              <div>
-                                <span className="font-bold text-stone-900 dark:text-slate-100 text-base">{sugerencia.ingrediente}</span>
-                                <span className="ml-2 text-amber-800 dark:text-amber-300 font-bold bg-amber-400/25 px-2 py-0.5 rounded-md text-xs border border-amber-500/30">
-                                  +{sugerencia.cantidadSugerida}
-                                </span>
-                              </div>
-                              <div className="flex items-center gap-1.5 shrink-0">
-                                <button 
-                                  type="button"
-                                  onClick={() => aceptarSugerencia(sugerencia.id)}
-                                  className="min-h-[48px] min-w-[48px] flex items-center justify-center bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 text-white rounded-xl border border-emerald-500/40 shadow-sm transition-colors cursor-pointer"
-                                  title="Aceptar sugerencia"
-                                  aria-label="Aceptar sugerencia"
-                                >
-                                  <CheckCircle2 className="w-5 h-5 stroke-[2.5]" />
-                                </button>
-                                <button 
-                                  type="button"
-                                  onClick={() => descartarSugerencia(sugerencia.id)}
-                                  className="min-h-[48px] min-w-[48px] flex items-center justify-center bg-stone-200 hover:bg-red-500 hover:text-white active:bg-red-600 dark:bg-slate-800 dark:hover:bg-red-500 text-stone-700 dark:text-slate-300 rounded-xl border border-stone-300 dark:border-slate-700 shadow-sm transition-colors cursor-pointer"
-                                  title="Descartar sugerencia"
-                                  aria-label="Descartar sugerencia"
-                                >
-                                  <XCircle className="w-5 h-5 stroke-[2.5]" />
-                                </button>
-                              </div>
-                            </div>
-                            <p className="text-xs text-stone-700 dark:text-slate-300 leading-relaxed font-medium border-l-4 border-amber-400 pl-2.5 py-0.5">
-                              {sugerencia.motivo}
-                            </p>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
 
                   {comprasPendientes.length === 0 ? (
                     <div className="flex flex-col items-center justify-center py-14 px-4 text-center bg-white/80 dark:bg-slate-900/60 backdrop-blur-md border border-stone-200/80 dark:border-slate-800 rounded-2xl shadow-sm">

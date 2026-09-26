@@ -28,26 +28,11 @@ export interface ProcesoHabitual {
   prioridad: 'Critica' | 'Media' | 'Baja';
 }
 
-export interface PlatoDelDia {
-  id: string;
-  nombre: string;
-  partida: string;
-  descripcion?: string;
-}
-
 export interface Compra {
   id: string;
   ingrediente: string;
   cantidad: number;
   categoria: 'Vegetales' | 'Proteinas' | 'Lacteos/Secos' | 'Otros';
-}
-
-export interface SugerenciaIA {
-  id: string;
-  ingrediente: string;
-  cantidadSugerida: number;
-  categoria: 'Vegetales' | 'Proteinas' | 'Lacteos/Secos';
-  motivo: string;
 }
 
 export interface Temporizador {
@@ -67,12 +52,6 @@ export interface Item86 {
   partida: string;
   hora: string;
   motivo?: string;
-}
-
-export interface StockInterno {
-  id: string;
-  nombre: string;
-  cantidad: number;
 }
 
 export interface NotaPostIt {
@@ -124,8 +103,6 @@ export interface BrigadeState {
   coloresPartidas: Record<string, string>;
   kanbanTareas: Tarea[];
   comprasPendientes: Compra[];
-  sugerenciasIA: SugerenciaIA[];
-  analizandoIA: boolean;
   
   // Modo Servicio & Herramientas en Pase
   modoServicio: boolean;
@@ -135,7 +112,6 @@ export interface BrigadeState {
   // Escalamiento Operativo V2
   pinJefe: string | null;
   isChefMode: boolean;
-  stockInterno: StockInterno[];
   notasPostIt: NotaPostIt[];
   modoZen: boolean;
   
@@ -171,9 +147,6 @@ export interface BrigadeState {
   agregarCompra: (compra: Compra) => void;
   cargarDatos: () => Promise<void>;
   vaciarCompras: () => void;
-  analizarEscandallo: () => Promise<void>;
-  aceptarSugerencia: (id: string) => void;
-  descartarSugerencia: (id: string) => void;
 
   // Acciones V2
   toggleChefMode: (pin?: string) => boolean;
@@ -182,9 +155,6 @@ export interface BrigadeState {
   agregarNotaPostIt: (texto: string) => void;
   editarNotaPostIt: (id: string, nuevoTexto: string) => void;
   eliminarNotaPostIt: (id: string) => void;
-  actualizarStockInterno: (id: string, delta: number) => void;
-  agregarStockInterno: (nombre: string, cantidadInicial?: number) => void;
-  eliminarStockInterno: (id: string) => void;
   cerrarTurno: () => void;
 
   // Catálogo de Procesos Habituales & Control de Limpieza
@@ -192,11 +162,6 @@ export interface BrigadeState {
   guardarProcesoHabitual: (proceso: Omit<ProcesoHabitual, 'id'>) => void;
   eliminarProcesoHabitual: (id: string) => void;
   limpiarCompletadas: (partida: string) => void;
-
-  // Platos del Día / Especiales del Servicio
-  platosDelDia: PlatoDelDia[];
-  agregarPlatoDelDia: (plato: Omit<PlatoDelDia, 'id'>) => void;
-  eliminarPlatoDelDia: (id: string) => void;
 
   // Sistema Blindado APPCC / Sanidad
   puntosControlAPPCC: PuntoControlAPPCC[];
@@ -254,8 +219,6 @@ export const useBrigadeStore = create<BrigadeState>((setStore, getStore) => ({
   hasConfiguredOnboarding: false,
   partidas: ['Saucier', 'Garde Manger', 'Pescados', 'Carnes'],
   coloresPartidas: {},
-  sugerenciasIA: [],
-  analizandoIA: false,
   procesosHabituales: PROCESOS_HABITUALES_INICIALES,
   kanbanTareas: [
     { id: '1', nombre: 'Fondo Oscuro', cantidad: 10, unidad: 'Litros', tipo: 'elaboracion', prioridad: 'Critica', estado: 'Pendiente', partida: 'Saucier' },
@@ -297,14 +260,6 @@ export const useBrigadeStore = create<BrigadeState>((setStore, getStore) => ({
   // Estado V2
   pinJefe: '1234',
   isChefMode: false,
-  stockInterno: [
-    { id: 'stock-1', nombre: 'Raciones Pan', cantidad: 12 },
-    { id: 'stock-2', nombre: 'Mantequilla Ahumada', cantidad: 5 }
-  ],
-  platosDelDia: [
-    { id: 'esp-1', nombre: 'Arroz meloso de carabinero', partida: 'Saucier', descripcion: 'Fondo de roca y azafrán' },
-    { id: 'esp-2', nombre: 'Lomo de corvina a la brasa', partida: 'Pescados', descripcion: 'Bilbaína suave y verduritas' }
-  ],
   notasPostIt: [],
   modoZen: false,
   puntosControlAPPCC: PUNTOS_CONTROL_APPCC_DEFECTO,
@@ -484,7 +439,6 @@ export const useBrigadeStore = create<BrigadeState>((setStore, getStore) => ({
       turnoActual: { nombreServicio: nuevoServicio, comensales: pax, horaPase: '13:30' },
       kanbanTareas: [],
       comprasPendientes: [],
-      sugerenciasIA: [],
       agotados86: [],
       notasPostIt: []
     });
@@ -637,7 +591,6 @@ export const useBrigadeStore = create<BrigadeState>((setStore, getStore) => ({
       partidas: state.partidas,
       coloresPartidas: state.coloresPartidas,
       procesosHabituales: state.procesosHabituales,
-      platosDelDia: state.platosDelDia,
       exportDate: new Date().toISOString()
     };
     return JSON.stringify(backup, null, 2);
@@ -655,7 +608,6 @@ export const useBrigadeStore = create<BrigadeState>((setStore, getStore) => ({
           partidas: data.partidas,
           coloresPartidas: data.coloresPartidas || {},
           procesosHabituales: Array.isArray(data.procesosHabituales) ? data.procesosHabituales : state.procesosHabituales,
-          platosDelDia: Array.isArray(data.platosDelDia) ? data.platosDelDia : state.platosDelDia,
           hasConfiguredOnboarding: true
         };
         set('brigade-sync-store', { ...state, ...newState });
@@ -745,11 +697,9 @@ export const useBrigadeStore = create<BrigadeState>((setStore, getStore) => ({
            modoServicio: data.modoServicio ?? false,
            isChefMode: data.isChefMode ?? false,
            pinJefe: data.pinJefe !== undefined ? data.pinJefe : '1234',
-           stockInterno: data.stockInterno ?? getStore().stockInterno,
            notasPostIt: data.notasPostIt ?? [],
            modoZen: data.modoZen ?? false,
            procesosHabituales: data.procesosHabituales?.length > 0 ? data.procesosHabituales : getStore().procesosHabituales,
-           platosDelDia: data.platosDelDia ?? getStore().platosDelDia,
            puntosControlAPPCC: data.puntosControlAPPCC?.length > 0 ? data.puntosControlAPPCC : PUNTOS_CONTROL_APPCC_DEFECTO,
            registrosAPPCC: Array.isArray(data.registrosAPPCC) ? data.registrosAPPCC : [],
            datosEstablecimientoAPPCC: data.datosEstablecimientoAPPCC ?? getStore().datosEstablecimientoAPPCC
@@ -759,92 +709,6 @@ export const useBrigadeStore = create<BrigadeState>((setStore, getStore) => ({
     } catch (e) {
       console.error('Error loading data from IndexedDB', e);
     }
-  },
-
-  analizarEscandallo: async () => {
-    if (getStore().analizandoIA) return;
-    setStore({ analizandoIA: true });
-    try {
-      const state = getStore();
-      const { turnoActual, kanbanTareas } = state;
-      console.log('Enviando datos al Edge Function (mock):', { turnoActual, kanbanTareas });
-
-      await new Promise((resolve) => setTimeout(resolve, 2000));
-      
-      const mockResponse = {
-        sugerencias: [
-          {
-            id: crypto.randomUUID(),
-            ingrediente: 'Mantequilla',
-            cantidadSugerida: 2,
-            categoria: 'Lacteos/Secos',
-            motivo: 'Alta demanda proyectada de Beurre Blanc y bajo stock estimado por 120 pax.'
-          },
-          {
-            id: crypto.randomUUID(),
-            ingrediente: 'Cebolla',
-            cantidadSugerida: 5,
-            categoria: 'Vegetales',
-            motivo: 'Necesario para aumentar la producción de Mirepoix y Fondo Oscuro.'
-          }
-        ]
-      };
-
-      setStore((prevState) => {
-        const newState = { sugerenciasIA: mockResponse.sugerencias as SugerenciaIA[], analizandoIA: false };
-        set('brigade-sync-store', { ...prevState, ...newState });
-        return newState;
-      });
-    } catch (error) {
-      console.error('Error al analizar escandallo con IA:', error);
-      setStore({ analizandoIA: false });
-    }
-  },
-
-  aceptarSugerencia: (id) => {
-    setStore((state) => {
-      const sugerencia = state.sugerenciasIA.find(s => s.id === id);
-      if (sugerencia) {
-        const existingIndex = state.comprasPendientes.findIndex(
-          c => c.ingrediente.toLowerCase() === sugerencia.ingrediente.toLowerCase()
-        );
-
-        let newComprasPendientes;
-        if (existingIndex >= 0) {
-          newComprasPendientes = [...state.comprasPendientes];
-          newComprasPendientes[existingIndex] = {
-            ...newComprasPendientes[existingIndex],
-            cantidad: newComprasPendientes[existingIndex].cantidad + sugerencia.cantidadSugerida
-          };
-        } else {
-          const nuevaCompra: Compra = {
-            id: crypto.randomUUID(),
-            ingrediente: sugerencia.ingrediente,
-            cantidad: sugerencia.cantidadSugerida,
-            categoria: sugerencia.categoria
-          };
-          newComprasPendientes = [...state.comprasPendientes, nuevaCompra];
-        }
-
-        const newState = {
-          comprasPendientes: newComprasPendientes,
-          sugerenciasIA: state.sugerenciasIA.filter(s => s.id !== id)
-        };
-        set('brigade-sync-store', { ...state, ...newState });
-        return newState;
-      }
-      return state;
-    });
-  },
-
-  descartarSugerencia: (id) => {
-    setStore((state) => {
-      const newState = {
-        sugerenciasIA: state.sugerenciasIA.filter(s => s.id !== id)
-      };
-      set('brigade-sync-store', { ...state, ...newState });
-      return newState;
-    });
   },
   
   // Implementación V2
@@ -916,38 +780,7 @@ export const useBrigadeStore = create<BrigadeState>((setStore, getStore) => ({
     });
   },
 
-  actualizarStockInterno: (id: string, delta: number) => {
-    setStore((state) => {
-      const newState = {
-        stockInterno: state.stockInterno.map(s => 
-          s.id === id ? { ...s, cantidad: Math.max(0, s.cantidad + delta) } : s
-        )
-      };
-      set('brigade-sync-store', { ...state, ...newState });
-      return newState;
-    });
-  },
 
-  agregarStockInterno: (nombre: string, cantidadInicial = 0) => {
-    setStore((state) => {
-      const nuevo: StockInterno = {
-        id: crypto.randomUUID(),
-        nombre,
-        cantidad: cantidadInicial
-      };
-      const newState = { stockInterno: [...state.stockInterno, nuevo] };
-      set('brigade-sync-store', { ...state, ...newState });
-      return newState;
-    });
-  },
-
-  eliminarStockInterno: (id: string) => {
-    setStore((state) => {
-      const newState = { stockInterno: state.stockInterno.filter(s => s.id !== id) };
-      set('brigade-sync-store', { ...state, ...newState });
-      return newState;
-    });
-  },
 
   cerrarTurno: () => {
     const state = getStore();
@@ -971,13 +804,6 @@ export const useBrigadeStore = create<BrigadeState>((setStore, getStore) => ({
       texto += `- Ninguna\n`;
     }
 
-    const platos = state.platosDelDia;
-    if (platos.length > 0) {
-      texto += `\n*🌟 ESPECIALES / PLATOS DEL DÍA (${platos.length}):*\n`;
-      platos.forEach(p => {
-        texto += `- [${p.partida}] ${p.nombre}${p.descripcion ? ` (${p.descripcion})` : ''}\n`;
-      });
-    }
     
     texto += `\n*🛑 PLATOS AGOTADOS / FUERA DE CARTA (${agotados.length}):*\n`;
     if (agotados.length > 0) {
@@ -1054,25 +880,7 @@ export const useBrigadeStore = create<BrigadeState>((setStore, getStore) => ({
     });
   },
 
-  agregarPlatoDelDia: (plato) => {
-    setStore((state) => {
-      const nuevo: PlatoDelDia = {
-        id: crypto.randomUUID(),
-        ...plato
-      };
-      const newState = { platosDelDia: [nuevo, ...state.platosDelDia] };
-      set('brigade-sync-store', { ...state, ...newState });
-      return newState;
-    });
-  },
 
-  eliminarPlatoDelDia: (id) => {
-    setStore((state) => {
-      const newState = { platosDelDia: state.platosDelDia.filter(p => p.id !== id) };
-      set('brigade-sync-store', { ...state, ...newState });
-      return newState;
-    });
-  },
 
   registrarLecturaAPPCC: (registro) => {
     setStore((state) => {

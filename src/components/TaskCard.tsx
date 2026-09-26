@@ -56,8 +56,6 @@ export function TaskCard({ tarea, index, isMobile = false }: TaskCardProps) {
     moverTarea, 
     actualizarTarea, 
     eliminarTarea, 
-    isChefMode, 
-    pinJefe,
     procesosHabituales,
     guardarProcesoHabitual
   } = useBrigadeStore();
@@ -123,17 +121,9 @@ export function TaskCard({ tarea, index, isMobile = false }: TaskCardProps) {
     setIsEditing(false);
   };
 
-  const handleDelete = () => {
-    if (!isChefMode) {
-      const p = prompt("Acción protegida por el Chef. Introduce el PIN:");
-      if (p !== (pinJefe || "1234")) {
-        alert("PIN incorrecto.");
-        return;
-      }
-    }
-    if (confirm(`¿Eliminar elaboración "${tarea.nombre}"?`)) {
-      eliminarTarea(tarea.id);
-    }
+  const handleDeleteFromEdit = () => {
+    eliminarTarea(tarea.id);
+    setIsEditing(false);
   };
 
   const cardContent = (
@@ -230,39 +220,17 @@ export function TaskCard({ tarea, index, isMobile = false }: TaskCardProps) {
         </div>
       </div>
 
-      {/* Quick Action Buttons — Larger touch targets */}
-      <div className="flex items-center gap-1 shrink-0">
+      {/* Quick Action Buttons — High-touch safe */}
+      <div className="flex items-center gap-1.5 shrink-0">
         <ShoppingModal tarea={tarea} compact />
 
         <button
           type="button"
-          onClick={handleGuardarProceso}
-          className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors cursor-pointer ${
-            yaEsProceso
-              ? 'text-amber-400 hover:text-amber-500'
-              : 'text-stone-400 hover:text-amber-400 dark:text-slate-500 dark:hover:text-amber-400'
-          }`}
-          title={yaEsProceso ? 'En catálogo de procesos habituales' : 'Guardar en procesos habituales de la partida'}
-        >
-          <Star className={`w-4 h-4 ${yaEsProceso ? 'fill-amber-400 text-amber-400' : ''}`} />
-        </button>
-
-        <button
-          type="button"
           onClick={() => setIsEditing(true)}
-          className="w-8 h-8 rounded-lg flex items-center justify-center text-stone-400 hover:text-stone-700 dark:text-slate-500 dark:hover:text-slate-200 transition-colors cursor-pointer"
-          title="Editar tarea"
+          className="w-9 h-9 rounded-xl flex items-center justify-center text-stone-400 hover:text-stone-700 dark:text-slate-500 dark:hover:text-slate-200 hover:bg-stone-100 dark:hover:bg-slate-800 transition-colors cursor-pointer active:scale-95"
+          title="Editar elaboración"
         >
           <Pencil className="w-4 h-4" />
-        </button>
-
-        <button
-          type="button"
-          onClick={handleDelete}
-          className="w-8 h-8 rounded-lg flex items-center justify-center text-stone-400 hover:text-red-500 dark:text-slate-500 dark:hover:text-red-400 transition-colors cursor-pointer"
-          title="Eliminar tarea"
-        >
-          <Trash2 className="w-4 h-4" />
         </button>
       </div>
     </div>
@@ -286,7 +254,7 @@ export function TaskCard({ tarea, index, isMobile = false }: TaskCardProps) {
             }`}
             autoFocus
           />
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             {!isAccion && (
               <>
                 <input
@@ -302,7 +270,33 @@ export function TaskCard({ tarea, index, isMobile = false }: TaskCardProps) {
                 <span className="text-xs font-bold uppercase text-stone-400">{tarea.unidad || 'Kg'}</span>
               </>
             )}
+
+            <button
+              type="button"
+              onClick={handleGuardarProceso}
+              className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition-colors cursor-pointer flex items-center gap-1 ${
+                yaEsProceso
+                  ? 'text-amber-500 bg-amber-500/10'
+                  : 'text-stone-500 dark:text-slate-400 hover:text-amber-500 hover:bg-amber-500/10'
+              }`}
+              title="Guardar como proceso habitual"
+            >
+              <Star className={`w-3.5 h-3.5 ${yaEsProceso ? 'fill-amber-400' : ''}`} />
+              <span className="hidden sm:inline">{yaEsProceso ? 'En Catálogo' : '+Proceso'}</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={handleDeleteFromEdit}
+              className="px-2.5 py-1.5 rounded-lg text-xs font-bold text-red-500 hover:text-red-400 hover:bg-red-500/10 transition-colors cursor-pointer flex items-center gap-1"
+              title="Eliminar elaboración"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+              <span>Eliminar</span>
+            </button>
+
             <div className="flex-1" />
+
             <button
               type="button"
               onClick={() => setIsEditing(false)}
