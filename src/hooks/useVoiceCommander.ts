@@ -555,11 +555,24 @@ export function locateExistingItem(
 /**
  * Generadores de Chimes Culinarios por Web Audio API (Offline, Zero Dependencias)
  */
-export function playWakeChime() {
+function getAudioContext(): AudioContext | null {
   try {
     const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
-    if (AudioCtx) {
-      const ctx = new AudioCtx();
+    if (!AudioCtx) return null;
+    const ctx = new AudioCtx();
+    if (ctx.state === 'suspended') {
+      ctx.resume().catch(() => {});
+    }
+    return ctx;
+  } catch {
+    return null;
+  }
+}
+
+export function playWakeChime() {
+  try {
+    const ctx = getAudioContext();
+    if (ctx) {
       const now = ctx.currentTime;
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
@@ -576,19 +589,24 @@ export function playWakeChime() {
       gain.connect(ctx.destination);
       osc.start(now);
       osc.stop(now + 0.38);
+      osc.onended = () => {
+        try { ctx.close().catch(() => {}); } catch {}
+      };
+      setTimeout(() => {
+        try { if (ctx.state !== 'closed') ctx.close().catch(() => {}); } catch {}
+      }, 550);
     }
   } catch {}
 
   if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
-    navigator.vibrate([40, 30, 60]);
+    try { navigator.vibrate([40, 30, 60]); } catch {}
   }
 }
 
 export function playSuccessChime() {
   try {
-    const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
-    if (AudioCtx) {
-      const ctx = new AudioCtx();
+    const ctx = getAudioContext();
+    if (ctx) {
       const now = ctx.currentTime;
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
@@ -604,19 +622,24 @@ export function playSuccessChime() {
       gain.connect(ctx.destination);
       osc.start(now);
       osc.stop(now + 0.35);
+      osc.onended = () => {
+        try { ctx.close().catch(() => {}); } catch {}
+      };
+      setTimeout(() => {
+        try { if (ctx.state !== 'closed') ctx.close().catch(() => {}); } catch {}
+      }, 500);
     }
   } catch {}
 
   if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
-    navigator.vibrate([60, 40, 80]);
+    try { navigator.vibrate([60, 40, 80]); } catch {}
   }
 }
 
 export function playCancelChime() {
   try {
-    const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
-    if (AudioCtx) {
-      const ctx = new AudioCtx();
+    const ctx = getAudioContext();
+    if (ctx) {
       const now = ctx.currentTime;
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
@@ -632,15 +655,20 @@ export function playCancelChime() {
       gain.connect(ctx.destination);
       osc.start(now);
       osc.stop(now + 0.25);
+      osc.onended = () => {
+        try { ctx.close().catch(() => {}); } catch {}
+      };
+      setTimeout(() => {
+        try { if (ctx.state !== 'closed') ctx.close().catch(() => {}); } catch {}
+      }, 400);
     }
   } catch {}
 }
 
 export function playAlertChime() {
   try {
-    const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
-    if (AudioCtx) {
-      const ctx = new AudioCtx();
+    const ctx = getAudioContext();
+    if (ctx) {
       const now = ctx.currentTime;
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
@@ -656,11 +684,17 @@ export function playAlertChime() {
       gain.connect(ctx.destination);
       osc.start(now);
       osc.stop(now + 0.28);
+      osc.onended = () => {
+        try { ctx.close().catch(() => {}); } catch {}
+      };
+      setTimeout(() => {
+        try { if (ctx.state !== 'closed') ctx.close().catch(() => {}); } catch {}
+      }, 450);
     }
   } catch {}
 
   if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
-    navigator.vibrate([30, 20, 30]);
+    try { navigator.vibrate([30, 20, 30]); } catch {}
   }
 }
 
@@ -716,7 +750,14 @@ export function useVoiceCommander(
   options?: UseVoiceCommanderOptions
 ) {
   const [isListening, setIsListening] = useState(false);
-  const [isSupported, setIsSupported] = useState(true);
+  const [isAmbientListening, setIsAmbientListening] = useState(false);
+  const [isSupported] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    return Boolean(
+      (window as unknown as { SpeechRecognition?: any }).SpeechRecognition || 
+      (window as unknown as { webkitSpeechRecognition?: any }).webkitSpeechRecognition
+    );
+  });
   const [transcript, setTranscript] = useState('');
   const [interimTranscript, setInterimTranscript] = useState('');
   const [parsedCommand, setParsedCommand] = useState<ParsedVoiceCommand | null>(null);
@@ -730,42 +771,78 @@ export function useVoiceCommander(
       return false;
     }
   });
-  const [isAmbientListening, setIsAmbientListening] = useState(false);
 
   const isModalOpen = options?.isModalOpen ?? false;
+  const isModalOpenRef = useRef(isModalOpen);
+  isModalOpenRef.current = isModalOpen;
+
+  const wakeWordEnabledRef = useRef(wakeWordEnabled);
+  wakeWordEnabledRef.current = wakeWordEnabled;
+
   const optionsRef = useRef(options);
   optionsRef.current = options;
 
-  const dynamicActionsRef = useRef<VoiceActionHandlers>({});
+  const defaultStationRef = useRef(defaultStation);
+  defaultStationRef.current = defaultStation;
 
+  const availableStationsRef = useRef(availableStations);
+  availableStationsRef.current = availableStations;
+
+  const dynamicActionsRef = useRef<VoiceActionHandlers>({});
+  const userPausedRef = useRef(false);
+
+  // Instancia única y flags de ciclo de vida del SpeechRecognition
   const recognitionRef = useRef<any>(null);
-  const ambientRecognitionRef = useRef<any>(null);
-  const silenceTimeoutRef = useRef<any>(null);
-  const restartAmbientTimeoutRef = useRef<any>(null);
+  const isRunningRef = useRef(false);
+  const isStartingRef = useRef(false);
+  const restartTimerRef = useRef<any>(null);
+  const sessionStartIndexRef = useRef(0);
 
   const registerVoiceActions = useCallback((handlers: VoiceActionHandlers) => {
     dynamicActionsRef.current = handlers;
   }, []);
 
-  // 1. Motor de Dictado Activo (Modal Abierto)
-  useEffect(() => {
+  // Función núcleo para asegurar que el reconocimiento esté activo sin colisiones
+  const ensureRecognitionRunning = useCallback(() => {
+    if (typeof window === 'undefined') return;
     const SpeechRecognition = 
       (window as unknown as { SpeechRecognition?: any }).SpeechRecognition || 
       (window as unknown as { webkitSpeechRecognition?: any }).webkitSpeechRecognition;
 
-    if (!SpeechRecognition) {
-      setIsSupported(false);
+    if (!SpeechRecognition) return;
+
+    // Si el usuario pausó explícitamente el micrófono, respetar la pausa
+    if (userPausedRef.current) return;
+
+    // Si ya está activo o en proceso de inicio, actualizar estados UI
+    if (isRunningRef.current || isStartingRef.current) {
+      if (isModalOpenRef.current) {
+        setIsListening(true);
+        setIsAmbientListening(false);
+      } else if (wakeWordEnabledRef.current && !userPausedRef.current) {
+        setIsListening(false);
+        setIsAmbientListening(true);
+      }
       return;
     }
 
-    if (!isModalOpen) {
-      if (recognitionRef.current) {
-        try {
+    if (restartTimerRef.current) {
+      clearTimeout(restartTimerRef.current);
+      restartTimerRef.current = null;
+    }
+
+    // Limpieza de instancia inactiva residual
+    if (recognitionRef.current) {
+      try {
+        recognitionRef.current.onstart = null;
+        recognitionRef.current.onend = null;
+        recognitionRef.current.onerror = null;
+        recognitionRef.current.onresult = null;
+        if (isRunningRef.current) {
           recognitionRef.current.abort();
-        } catch {}
-      }
-      setIsListening(false);
-      return;
+        }
+      } catch {}
+      recognitionRef.current = null;
     }
 
     try {
@@ -773,251 +850,298 @@ export function useVoiceCommander(
       recognition.continuous = true;
       recognition.interimResults = true;
       recognition.lang = 'es-ES';
+      recognition.maxAlternatives = 1;
+
+      isStartingRef.current = true;
 
       recognition.onstart = () => {
-        setIsListening(true);
+        isStartingRef.current = false;
+        isRunningRef.current = true;
         setErrorMessage(null);
+
+        if (isModalOpenRef.current) {
+          setIsListening(true);
+          setIsAmbientListening(false);
+        } else if (wakeWordEnabledRef.current && !userPausedRef.current) {
+          setIsListening(false);
+          setIsAmbientListening(true);
+        }
       };
 
       recognition.onresult = (event: SpeechRecognitionEvent) => {
-        let interim = '';
-        let final = '';
+        const isModal = isModalOpenRef.current;
 
-        for (let i = event.resultIndex; i < event.results.length; ++i) {
-          const res = event.results[i];
-          const text = (res[0]?.transcript || '').trim();
-          if (!text) continue;
+        if (!isModal) {
+          // MODO AMBIENTAL (Wake word: "Oye Chef", "Chef", etc.)
+          for (let i = event.resultIndex; i < event.results.length; ++i) {
+            const text = (event.results[i][0]?.transcript || '').trim();
+            if (!text) continue;
 
-          if (res.isFinal) {
-            final += (final ? ' ' : '') + text;
-          } else {
-            interim += (interim ? ' ' : '') + text;
-          }
-        }
+            const check = checkWakeWord(text);
+            if (check.isWake) {
+              playWakeChime();
 
-        const cleanFinal = deduplicateText(final);
-        const cleanInterim = deduplicateText(interim);
+              // Marcar el índice exacto donde se detectó el wake word como inicio
+              sessionStartIndexRef.current = i;
 
-        if (cleanInterim) {
-          setInterimTranscript(cleanInterim);
-        } else {
-          setInterimTranscript('');
-        }
+              let parsed: ParsedVoiceCommand | null = null;
+              if (check.remainderText && check.remainderText.length >= 3) {
+                parsed = parseVoiceCommand(
+                  check.remainderText, 
+                  defaultStationRef.current, 
+                  availableStationsRef.current
+                );
+              }
 
-        if (cleanFinal) {
-          setTranscript(cleanFinal);
-          setInterimTranscript('');
+              // Preparar buffer de transcripción limpio
+              setTranscript(check.remainderText ? deduplicateText(check.remainderText) : '');
+              setInterimTranscript('');
+              setParsedCommand(parsed);
 
-          // Evaluar comandos de control por voz en vivo
-          const lowerFinal = cleanFinal.toLowerCase().trim();
-          if (/\b(confirmar|guardar|listo|inyectar|oído|oido|vale)\b/i.test(lowerFinal)) {
-            if (dynamicActionsRef.current.onConfirm) {
-              dynamicActionsRef.current.onConfirm();
-            } else {
-              optionsRef.current?.onVoiceConfirm?.();
-            }
-            return;
-          }
-          if (/\b(sumar|añadir cantidad|sumar cantidad|suma)\b/i.test(lowerFinal)) {
-            if (dynamicActionsRef.current.onSumExisting) {
-              dynamicActionsRef.current.onSumExisting();
+              // Transicionar inmediatamente a estado de escucha activa
+              setIsListening(true);
+              setIsAmbientListening(false);
+
+              // Notificar al componente raíz para abrir el modal
+              optionsRef.current?.onWakeDetected?.(parsed, check.remainderText);
               return;
             }
           }
-          if (/\b(cancelar|cerrar|atrás|atras|salir)\b/i.test(lowerFinal)) {
-            if (dynamicActionsRef.current.onCancel) {
-              dynamicActionsRef.current.onCancel();
+        } else {
+          // MODO MODAL (Dictado de tareas / Comandos de control)
+          let interim = '';
+          let final = '';
+
+          const startIdx = Math.min(sessionStartIndexRef.current, event.results.length > 0 ? event.results.length - 1 : 0);
+
+          for (let i = startIdx; i < event.results.length; ++i) {
+            const res = event.results[i];
+            let text = (res[0]?.transcript || '').trim();
+            if (!text) continue;
+
+            // Si es el resultado de la invocación inicial o contiene wake word, extraer el comando restante
+            if (i === sessionStartIndexRef.current) {
+              const check = checkWakeWord(text);
+              if (check.isWake) {
+                text = check.remainderText;
+              } else {
+                text = stripPrefixes(text);
+              }
             } else {
-              optionsRef.current?.onVoiceCancel?.();
+              text = stripPrefixes(text);
             }
-            return;
-          }
-          if (/\b(acción|accion|operativa)\b/i.test(lowerFinal) && !cleanFinal.includes(' ')) {
-            if (dynamicActionsRef.current.onToggleTipo) {
-              dynamicActionsRef.current.onToggleTipo();
+
+            if (!text) continue;
+
+            if (res.isFinal) {
+              final += (final ? ' ' : '') + text;
             } else {
-              optionsRef.current?.onVoiceToggleTipo?.();
+              interim += (interim ? ' ' : '') + text;
             }
-            return;
           }
 
-          const parsed = parseVoiceCommand(cleanFinal, defaultStation, availableStations);
-          setParsedCommand(parsed);
-        } else if (cleanInterim && cleanInterim.length >= 3) {
-          const parsed = parseVoiceCommand(cleanInterim, defaultStation, availableStations);
-          setParsedCommand(parsed);
+          const cleanFinal = deduplicateText(final);
+          const cleanInterim = deduplicateText(interim);
+
+          if (cleanInterim) {
+            setInterimTranscript(cleanInterim);
+          } else {
+            setInterimTranscript('');
+          }
+
+          if (cleanFinal) {
+            setTranscript(cleanFinal);
+            setInterimTranscript('');
+
+            // Evaluar comandos de control por voz en vivo dentro del modal
+            const lowerFinal = cleanFinal.toLowerCase().trim();
+            if (/\b(confirmar|guardar|listo|inyectar|oído|oido|vale)\b/i.test(lowerFinal)) {
+              if (dynamicActionsRef.current.onConfirm) {
+                dynamicActionsRef.current.onConfirm();
+              } else {
+                optionsRef.current?.onVoiceConfirm?.();
+              }
+              return;
+            }
+            if (/\b(sumar|añadir cantidad|sumar cantidad|suma)\b/i.test(lowerFinal)) {
+              if (dynamicActionsRef.current.onSumExisting) {
+                dynamicActionsRef.current.onSumExisting();
+                return;
+              }
+            }
+            if (/\b(cancelar|cerrar|atrás|atras|salir)\b/i.test(lowerFinal)) {
+              if (dynamicActionsRef.current.onCancel) {
+                dynamicActionsRef.current.onCancel();
+              } else {
+                optionsRef.current?.onVoiceCancel?.();
+              }
+              return;
+            }
+            if (/\b(acción|accion|operativa)\b/i.test(lowerFinal) && !cleanFinal.includes(' ')) {
+              if (dynamicActionsRef.current.onToggleTipo) {
+                dynamicActionsRef.current.onToggleTipo();
+              } else {
+                optionsRef.current?.onVoiceToggleTipo?.();
+              }
+              return;
+            }
+
+            const parsed = parseVoiceCommand(cleanFinal, defaultStationRef.current, availableStationsRef.current);
+            setParsedCommand(parsed);
+          } else if (cleanInterim && cleanInterim.length >= 3) {
+            const parsed = parseVoiceCommand(cleanInterim, defaultStationRef.current, availableStationsRef.current);
+            setParsedCommand(parsed);
+          }
         }
       };
 
       recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
+        isStartingRef.current = false;
         if (event.error === 'not-allowed') {
           setErrorMessage('Permiso de micrófono denegado. Actívalo en los ajustes de tu navegador.');
+          setWakeWordEnabled(false);
+          try {
+            localStorage.setItem('misepro_wake_word_enabled', 'false');
+          } catch {}
+          setIsListening(false);
+          setIsAmbientListening(false);
         } else if (event.error === 'no-speech') {
-          // Ignorar no-speech en cocina
+          // Silencio normal en cocina, no es un fallo
+        } else if (event.error === 'aborted') {
+          // Detención intencional o reinicio, ignorar
         } else {
-          setErrorMessage(`Aviso micrófono: ${event.error}`);
+          console.warn('Aviso de micrófono:', event.error);
         }
       };
 
       recognition.onend = () => {
-        // En modal abierto, si se detiene por silencio prolongado, reiniciar limpiamente
-        if (isModalOpen) {
-          setTimeout(() => {
-            try {
-              recognition.start();
-            } catch {}
-          }, 300);
+        isStartingRef.current = false;
+        isRunningRef.current = false;
+
+        // Reinicio automático limpio si el sistema debe seguir escuchando
+        const shouldBeRunning = !userPausedRef.current && (isModalOpenRef.current || wakeWordEnabledRef.current);
+        if (shouldBeRunning) {
+          if (restartTimerRef.current) clearTimeout(restartTimerRef.current);
+          restartTimerRef.current = setTimeout(() => {
+            sessionStartIndexRef.current = 0;
+            ensureRecognitionRunning();
+          }, 150);
         } else {
           setIsListening(false);
+          setIsAmbientListening(false);
         }
       };
 
       recognition.start();
       recognitionRef.current = recognition;
     } catch (err) {
-      console.error('Error inicializando SpeechRecognition activo', err);
-      setIsSupported(false);
-    }
-
-    const currentRec = recognitionRef.current;
-    const currentSilence = silenceTimeoutRef.current;
-    return () => {
-      if (currentSilence) clearTimeout(currentSilence);
-      if (currentRec) {
-        try {
-          currentRec.abort();
-        } catch {}
+      isStartingRef.current = false;
+      isRunningRef.current = false;
+      console.warn('SpeechRecognition retry scheduled:', err);
+      // NUNCA deshabilitar isSupported por una colisión transitoria
+      const shouldBeRunning = !userPausedRef.current && (isModalOpenRef.current || wakeWordEnabledRef.current);
+      if (shouldBeRunning) {
+        if (restartTimerRef.current) clearTimeout(restartTimerRef.current);
+        restartTimerRef.current = setTimeout(() => {
+          ensureRecognitionRunning();
+        }, 250);
       }
-    };
-  }, [isModalOpen, defaultStation, availableStations]);
+    }
+  }, []);
 
-  // 2. Motor Manos Libres en Standby (Wake Word "Chef" / "Oye Chef")
+  // Sincronización continua de estado con apertura/cierre de modal y switch de wake word
   useEffect(() => {
-    const SpeechRecognition = 
-      (window as unknown as { SpeechRecognition?: any }).SpeechRecognition || 
-      (window as unknown as { webkitSpeechRecognition?: any }).webkitSpeechRecognition;
+    isModalOpenRef.current = isModalOpen;
+    userPausedRef.current = false;
 
-    // Solo corre cuando el modal está CERRADO y wakeWordEnabled está activo
-    if (!SpeechRecognition || !wakeWordEnabled || isModalOpen) {
-      if (ambientRecognitionRef.current) {
-        try {
-          ambientRecognitionRef.current.abort();
-        } catch {}
-      }
-      setIsAmbientListening(false);
-      return;
-    }
+    if (!isModalOpen) {
+      // Modal cerrado: resetear buffers temporales del modal
+      setTranscript('');
+      setInterimTranscript('');
+      setParsedCommand(null);
 
-    try {
-      const ambient = new SpeechRecognition();
-      ambient.continuous = true;
-      ambient.interimResults = true;
-      ambient.lang = 'es-ES';
-
-      ambient.onstart = () => {
-        setIsAmbientListening(true);
-      };
-
-      ambient.onresult = (event: SpeechRecognitionEvent) => {
-        for (let i = event.resultIndex; i < event.results.length; ++i) {
-          const text = (event.results[i][0]?.transcript || '').trim();
-          if (!text) continue;
-
-          const check = checkWakeWord(text);
-          if (check.isWake) {
-            playWakeChime();
-            try {
-              ambient.abort();
-            } catch {}
-            
-            let parsed: ParsedVoiceCommand | null = null;
-            if (check.remainderText && check.remainderText.length >= 3) {
-              parsed = parseVoiceCommand(check.remainderText, defaultStation, availableStations);
-            }
-            optionsRef.current?.onWakeDetected?.(parsed, check.remainderText);
-            return;
-          }
-        }
-      };
-
-      ambient.onerror = (event: SpeechRecognitionErrorEvent) => {
-        if (event.error === 'not-allowed') {
-          setWakeWordEnabled(false);
+      if (wakeWordEnabled) {
+        setIsListening(false);
+        setIsAmbientListening(isRunningRef.current);
+        sessionStartIndexRef.current = 0;
+        ensureRecognitionRunning();
+      } else {
+        if (restartTimerRef.current) clearTimeout(restartTimerRef.current);
+        if (recognitionRef.current) {
           try {
-            localStorage.setItem('misepro_wake_word_enabled', 'false');
+            recognitionRef.current.stop();
           } catch {}
         }
-      };
-
-      ambient.onend = () => {
+        setIsListening(false);
         setIsAmbientListening(false);
-        // Reinicio automático si el modal sigue cerrado
-        if (wakeWordEnabled && !isModalOpen) {
-          restartAmbientTimeoutRef.current = setTimeout(() => {
-            try {
-              ambient.start();
-            } catch {}
-          }, 350);
-        }
-      };
-
-      ambient.start();
-      ambientRecognitionRef.current = ambient;
-    } catch {
+      }
+    } else {
+      // Modal abierto: mantener micrófono escuchando
+      setIsListening(true);
       setIsAmbientListening(false);
+      ensureRecognitionRunning();
     }
+  }, [isModalOpen, wakeWordEnabled, ensureRecognitionRunning]);
 
-    const currentAmbient = ambientRecognitionRef.current;
-    const currentRestart = restartAmbientTimeoutRef.current;
+  // Limpieza al desmontar
+  useEffect(() => {
     return () => {
-      if (currentRestart) clearTimeout(currentRestart);
-      if (currentAmbient) {
+      if (restartTimerRef.current) clearTimeout(restartTimerRef.current);
+      if (recognitionRef.current) {
         try {
-          currentAmbient.abort();
+          recognitionRef.current.onstart = null;
+          recognitionRef.current.onend = null;
+          recognitionRef.current.onerror = null;
+          recognitionRef.current.onresult = null;
+          recognitionRef.current.abort();
         } catch {}
       }
+      isRunningRef.current = false;
+      isStartingRef.current = false;
     };
-  }, [wakeWordEnabled, isModalOpen, defaultStation, availableStations]);
+  }, []);
 
   const toggleWakeWord = useCallback(() => {
     setWakeWordEnabled(prev => {
       const next = !prev;
+      wakeWordEnabledRef.current = next;
       try {
         localStorage.setItem('misepro_wake_word_enabled', String(next));
       } catch {}
       if (next) {
         playWakeChime();
+        userPausedRef.current = false;
+        ensureRecognitionRunning();
       } else {
         playCancelChime();
+        if (!isModalOpenRef.current) {
+          if (restartTimerRef.current) clearTimeout(restartTimerRef.current);
+          if (recognitionRef.current) {
+            try {
+              recognitionRef.current.stop();
+            } catch {}
+          }
+          setIsAmbientListening(false);
+          setIsListening(false);
+        }
       }
       return next;
     });
-  }, []);
+  }, [ensureRecognitionRunning]);
 
   const startListening = useCallback(() => {
     setErrorMessage(null);
     setTranscript('');
     setInterimTranscript('');
     setParsedCommand(null);
-
-    if (silenceTimeoutRef.current) clearTimeout(silenceTimeoutRef.current);
-
-    if (recognitionRef.current) {
-      try {
-        recognitionRef.current.abort();
-      } catch {}
-      setTimeout(() => {
-        try {
-          recognitionRef.current?.start();
-        } catch (err) {
-          console.warn('Recognition start retry', err);
-        }
-      }, 80);
-    }
-  }, []);
+    userPausedRef.current = false;
+    sessionStartIndexRef.current = 0;
+    ensureRecognitionRunning();
+  }, [ensureRecognitionRunning]);
 
   const stopListening = useCallback(() => {
-    if (silenceTimeoutRef.current) clearTimeout(silenceTimeoutRef.current);
+    userPausedRef.current = true;
+    if (restartTimerRef.current) clearTimeout(restartTimerRef.current);
     if (recognitionRef.current) {
       try {
         recognitionRef.current.stop();
@@ -1027,10 +1151,10 @@ export function useVoiceCommander(
   }, []);
 
   const resetCommand = useCallback(() => {
-    if (silenceTimeoutRef.current) clearTimeout(silenceTimeoutRef.current);
     setParsedCommand(null);
     setTranscript('');
     setInterimTranscript('');
+    sessionStartIndexRef.current = 0;
   }, []);
 
   const forceParseNow = useCallback(() => {
@@ -1038,19 +1162,18 @@ export function useVoiceCommander(
     if (full) {
       setTranscript(full);
       setInterimTranscript('');
-      const parsed = parseVoiceCommand(full, defaultStation, availableStations);
+      const parsed = parseVoiceCommand(full, defaultStationRef.current, availableStationsRef.current);
       setParsedCommand(parsed);
     }
-  }, [transcript, interimTranscript, defaultStation, availableStations]);
+  }, [transcript, interimTranscript]);
 
   const applyCustomText = useCallback((customText: string) => {
-    if (silenceTimeoutRef.current) clearTimeout(silenceTimeoutRef.current);
     const clean = deduplicateText(customText.trim());
     setTranscript(clean);
     setInterimTranscript('');
-    const parsed = parseVoiceCommand(clean, defaultStation, availableStations);
+    const parsed = parseVoiceCommand(clean, defaultStationRef.current, availableStationsRef.current);
     setParsedCommand(parsed);
-  }, [defaultStation, availableStations]);
+  }, []);
 
   return {
     isListening,

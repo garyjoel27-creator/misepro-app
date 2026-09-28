@@ -273,26 +273,33 @@ export function VoiceAssistantModal({
     }
   }, [parsedCommand, hasUserEdited]);
 
+  const hasInitializedRef = useRef(false);
+
   // Si se abre y se pasa initialCommand o initialText
   useEffect(() => {
     if (isOpen) {
-      if (initialCommand) {
-        setEditableCmd(initialCommand);
-      } else if (initialText) {
-        applyCustomText(initialText);
-      } else {
-        setEditableCmd({
-          tipo: 'tarea',
-          tipoTarea: 'elaboracion',
-          rawText: '',
-          nombre: '',
-          cantidad: 1,
-          unidad: 'Kg',
-          partida: partidas[0] || currentStation,
-          prioridad: 'Media',
-          confianza: 0.5
-        });
+      if (!hasInitializedRef.current) {
+        hasInitializedRef.current = true;
+        if (initialCommand) {
+          setEditableCmd(initialCommand);
+        } else if (initialText) {
+          applyCustomText(initialText);
+        } else {
+          setEditableCmd({
+            tipo: 'tarea',
+            tipoTarea: 'elaboracion',
+            rawText: '',
+            nombre: '',
+            cantidad: 1,
+            unidad: 'Kg',
+            partida: partidas[0] || currentStation,
+            prioridad: 'Media',
+            confianza: 0.5
+          });
+        }
       }
+    } else {
+      hasInitializedRef.current = false;
     }
   }, [isOpen, initialCommand, initialText, applyCustomText, partidas, currentStation]);
 

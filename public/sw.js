@@ -1,4 +1,4 @@
-// MisePro Service Worker - Version 2.9.0-handsfree-voice-unified
+// MisePro Service Worker - Version 2.9.1-handsfree-unblocked
 self.addEventListener('install', () => {
   self.skipWaiting();
 });
