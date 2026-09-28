@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef } from 'react';
 import * as Dialog from '@radix-ui/react-dialog';
 import { 
   Settings, 
@@ -50,12 +50,14 @@ export function StationManagerModal({ open, onOpenChange }: StationManagerModalP
   // Restaurant name state
   const [restName, setRestName] = useState(nombreRestaurante || 'Mi Cocina Pro');
   const [saveFeedback, setSaveFeedback] = useState(false);
+  const [prevOpen, setPrevOpen] = useState(open);
 
-  useEffect(() => {
+  if (open !== prevOpen) {
+    setPrevOpen(open);
     if (open) {
       setRestName(nombreRestaurante || 'Mi Cocina Pro');
     }
-  }, [open, nombreRestaurante]);
+  }
 
   // File input ref for JSON import
   const fileInputRef = useRef<HTMLInputElement>(null);

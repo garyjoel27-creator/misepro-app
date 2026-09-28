@@ -9,6 +9,28 @@ interface LogisticsDrawerProps {
   onOpenChange: (open: boolean) => void;
 }
 
+function CategorizedList({ title, items, icon }: { title: string; items: Compra[]; icon: string }) {
+  if (items.length === 0) return null;
+  return (
+    <div className="bg-white/85 dark:bg-slate-900/80 backdrop-blur-md rounded-2xl p-4 sm:p-5 border border-stone-200/80 dark:border-slate-800 shadow-sm">
+      <h3 className="font-bold text-stone-900 dark:text-white uppercase tracking-wider mb-3 flex items-center gap-2 text-sm sm:text-base">
+        <span className="text-xl">{icon}</span>
+        {title}
+      </h3>
+      <ul className="space-y-2.5">
+        {items.map((item, i) => (
+          <li key={item.id || i} className="flex justify-between items-center bg-stone-50 dark:bg-slate-950/60 p-3 rounded-xl border border-stone-200/80 dark:border-slate-800/80 shadow-xs">
+            <span className="font-bold text-stone-900 dark:text-slate-100 text-base">{item.ingrediente}</span>
+            <span className="text-amber-700 dark:text-amber-400 font-black bg-amber-500/15 dark:bg-slate-900 px-3 py-1 rounded-lg text-sm border border-amber-500/30 dark:border-amber-500/20 shadow-xs">
+              x{item.cantidad}
+            </span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
 export function LogisticsDrawer({ open, onOpenChange }: LogisticsDrawerProps) {
   const { comprasPendientes, vaciarCompras, agregarCompra } = useBrigadeStore();
   const [nuevoItem, setNuevoItem] = useState('');
@@ -85,28 +107,6 @@ export function LogisticsDrawer({ open, onOpenChange }: LogisticsDrawerProps) {
       console.error('Error al exportar: ', err);
       alert('Error al copiar al portapapeles');
     }
-  };
-
-  const CategorizedList = ({ title, items, icon }: { title: string, items: Compra[], icon: string }) => {
-    if (items.length === 0) return null;
-    return (
-      <div className="bg-white/85 dark:bg-slate-900/80 backdrop-blur-md rounded-2xl p-4 sm:p-5 border border-stone-200/80 dark:border-slate-800 shadow-sm">
-        <h3 className="font-bold text-stone-900 dark:text-white uppercase tracking-wider mb-3 flex items-center gap-2 text-sm sm:text-base">
-          <span className="text-xl">{icon}</span>
-          {title}
-        </h3>
-        <ul className="space-y-2.5">
-          {items.map((item, i) => (
-            <li key={item.id || i} className="flex justify-between items-center bg-stone-50 dark:bg-slate-950/60 p-3 rounded-xl border border-stone-200/80 dark:border-slate-800/80 shadow-xs">
-              <span className="font-bold text-stone-900 dark:text-slate-100 text-base">{item.ingrediente}</span>
-              <span className="text-amber-700 dark:text-amber-400 font-black bg-amber-500/15 dark:bg-slate-900 px-3 py-1 rounded-lg text-sm border border-amber-500/30 dark:border-amber-500/20 shadow-xs">
-                x{item.cantidad}
-              </span>
-            </li>
-          ))}
-        </ul>
-      </div>
-    );
   };
 
   const vegetales = comprasPendientes.filter(c => c.categoria === 'Vegetales');

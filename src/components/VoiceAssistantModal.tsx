@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef, type ComponentType } from 'react';
+import { useEffect, useState, useRef, useCallback, useMemo, type ComponentType } from 'react';
 import { 
   Mic, 
   MicOff, 
@@ -15,9 +15,18 @@ import {
   ChefHat,
   Sparkles,
   Zap,
-  Tag
+  Tag,
+  Volume2
 } from 'lucide-react';
-import { useVoiceCommander, type ParsedVoiceCommand, type VoiceIntentType } from '../hooks/useVoiceCommander';
+import { 
+  playSuccessChime, 
+  playCancelChime,
+  playAlertChime,
+  locateExistingItem,
+  type ParsedVoiceCommand, 
+  type VoiceIntentType,
+  type VoiceCommanderController
+} from '../hooks/useVoiceCommander';
 import { useBrigadeStore } from '../store/useBrigadeStore';
 import { type StationName, getStationConfig } from '../types/stations';
 
@@ -25,6 +34,10 @@ interface VoiceAssistantModalProps {
   isOpen: boolean;
   onClose: () => void;
   currentStation?: StationName;
+  initialCommand?: ParsedVoiceCommand | null;
+  initialText?: string;
+  isWakeWordTriggered?: boolean;
+  voiceCommander: VoiceCommanderController;
 }
 
 interface IntentOption {
@@ -76,11 +89,23 @@ const QUANTITY_INCREMENTS = [0.5, 1, 2, 5, 10];
 const TIMER_PRESETS = [3, 5, 8, 10, 15, 20, 30, 45];
 const COMPRA_CATEGORIES = ['Vegetales', 'Proteinas', 'Lacteos/Secos'] as const;
 
-export function VoiceAssistantModal({ isOpen, onClose, currentStation = 'Saucier' }: VoiceAssistantModalProps) {
+export function VoiceAssistantModal({ 
+  isOpen, 
+  onClose, 
+  currentStation = 'Saucier',
+  initialCommand = null,
+  initialText = '',
+  isWakeWordTriggered = false,
+  voiceCommander
+}: VoiceAssistantModalProps) {
   const {
     partidas,
     coloresPartidas,
+    kanbanTareas,
+    comprasPendientes,
+    agotados86,
     agregarTarea,
+    actualizarTarea,
     agregarCompra,
     marcarAgotado86,
     crearTemporizador
@@ -97,112 +122,48 @@ export function VoiceAssistantModal({ isOpen, onClose, currentStation = 'Saucier
     stopListening,
     resetCommand,
     forceParseNow,
-    applyCustomText
-  } = useVoiceCommander(currentStation, partidas);
+    applyCustomText,
+    registerVoiceActions
+  } = voiceCommander;
 
   // Estado del comando interactivo en el "cuadradito"
-  const [editableCmd, setEditableCmd] = useState<ParsedVoiceCommand | null>(null);
+  const [editableCmd, setEditableCmd] = useState<ParsedVoiceCommand | null>(() => {
+    if (initialCommand) return initialCommand;
+    return null;
+  });
   
   // Bandera para proteger las ediciones manuales del usuario frente al habla continua
   const [hasUserEdited, setHasUserEdited] = useState(false);
+  const [autoConfirmSeconds, setAutoConfirmSeconds] = useState<number | null>(null);
 
   const inputRef = useRef<HTMLInputElement>(null);
+  const autoConfirmTimerRef = useRef<any>(null);
+  const lastAlertedIdRef = useRef<string | null>(null);
 
-  // Sincronizar comando interpretado solo si el usuario no está editando manualmente
+  // Localizar en tiempo real si el elemento ya existe en la brigada ("localice que ya lo tiene")
+  const locatedMatch = useMemo(() => {
+    if (!editableCmd?.nombre || editableCmd.nombre.trim().length < 2) return null;
+    return locateExistingItem(
+      editableCmd.nombre,
+      editableCmd.partida || (partidas[0] || currentStation),
+      kanbanTareas,
+      comprasPendientes,
+      agotados86
+    );
+  }, [editableCmd, currentStation, partidas, kanbanTareas, comprasPendientes, agotados86]);
+
+  // Alerta sonora sutil cuando se localiza un item existente
   useEffect(() => {
-    if (!hasUserEdited && parsedCommand) {
-      setEditableCmd({ ...parsedCommand });
+    if (locatedMatch && lastAlertedIdRef.current !== locatedMatch.id) {
+      lastAlertedIdRef.current = locatedMatch.id;
+      playAlertChime();
     }
-  }, [parsedCommand, hasUserEdited]);
+  }, [locatedMatch]);
 
-  // Si no hay comando editable pero hay partida, crear uno base por defecto si se abre
-  useEffect(() => {
-    if (isOpen && !editableCmd) {
-      setEditableCmd({
-        tipo: 'tarea',
-        tipoTarea: 'elaboracion',
-        rawText: '',
-        nombre: '',
-        cantidad: 1,
-        unidad: 'Kg',
-        partida: partidas[0] || currentStation,
-        prioridad: 'Media',
-        confianza: 0.5
-      });
-    }
-  }, [isOpen, partidas, currentStation, editableCmd]);
-
-  // Control del ciclo de escucha al abrir / cerrar
-  useEffect(() => {
-    if (isOpen && isSupported) {
-      setHasUserEdited(false);
-      startListening();
-    } else {
-      stopListening();
-      resetCommand();
-      setHasUserEdited(false);
-      setEditableCmd(null);
-    }
-    return () => {
-      stopListening();
-    };
-  }, [isOpen, isSupported, startListening, stopListening, resetCommand]);
-
-  if (!isOpen) return null;
-
-  const playSuccessChime = () => {
-    try {
-      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
-      if (AudioCtx) {
-        const ctx = new AudioCtx();
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
-        osc.type = 'sine';
-        osc.frequency.setValueAtTime(587.33, ctx.currentTime);
-        osc.frequency.setValueAtTime(880, ctx.currentTime + 0.08);
-        gain.gain.setValueAtTime(0.15, ctx.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.35);
-        osc.connect(gain);
-        gain.connect(ctx.destination);
-        osc.start();
-        osc.stop(ctx.currentTime + 0.35);
-      }
-    } catch (_) {}
-
-    if ('vibrate' in navigator) {
-      navigator.vibrate([80, 40, 100]);
-    }
-  };
-
-  const handleSelectIntent = (tipo: VoiceIntentType) => {
-    setHasUserEdited(true);
-    stopListening(); // Pausar para que el cocinero configure tranquilo
-    setEditableCmd(prev => {
-      const baseName = prev?.nombre || '';
-      const basePartida = prev?.partida || partidas[0] || currentStation;
-      return {
-        tipo,
-        rawText: prev?.rawText || '',
-        nombre: baseName,
-        cantidad: prev?.cantidad || 1,
-        unidad: prev?.unidad || 'Kg',
-        partida: basePartida,
-        prioridad: prev?.prioridad || 'Media',
-        minutos: prev?.minutos || 5,
-        categoria: prev?.categoria || 'Vegetales',
-        motivo: prev?.motivo || 'Agotado durante servicio',
-        confianza: 1
-      };
-    });
-  };
-
-  const handleUpdateField = (partial: Partial<ParsedVoiceCommand>) => {
-    setHasUserEdited(true);
-    setEditableCmd(prev => (prev ? { ...prev, ...partial } : null));
-  };
-
-  const handleConfirmCommand = () => {
+  const handleConfirmCommand = useCallback(() => {
     if (!editableCmd || !editableCmd.nombre.trim()) return;
+    if (autoConfirmTimerRef.current) clearInterval(autoConfirmTimerRef.current);
+    setAutoConfirmSeconds(null);
     playSuccessChime();
 
     const targetStation = editableCmd.partida || (partidas[0] || currentStation);
@@ -243,11 +204,175 @@ export function VoiceAssistantModal({ isOpen, onClose, currentStation = 'Saucier
 
     setTimeout(() => {
       onClose();
-    }, 320);
+    }, 280);
+  }, [editableCmd, partidas, currentStation, agregarTarea, agregarCompra, marcarAgotado86, crearTemporizador, onClose]);
+
+  // Acción inteligente: Sumar cantidad a la tarea/compra ya existente
+  const handleSumToExisting = useCallback(() => {
+    if (!locatedMatch) return;
+    if (autoConfirmTimerRef.current) clearInterval(autoConfirmTimerRef.current);
+    setAutoConfirmSeconds(null);
+    playSuccessChime();
+
+    if (locatedMatch.type === 'tarea') {
+      const addedQty = editableCmd?.cantidad || 1;
+      const currentQty = locatedMatch.cantidad || 0;
+      actualizarTarea(locatedMatch.id, {
+        cantidad: currentQty + addedQty
+      });
+    } else if (locatedMatch.type === 'compra') {
+      const addedQty = editableCmd?.cantidad || 1;
+      const currentQty = locatedMatch.cantidad || 0;
+      agregarCompra({
+        id: crypto.randomUUID(),
+        ingrediente: locatedMatch.nombre,
+        cantidad: currentQty + addedQty,
+        categoria: editableCmd?.categoria || 'Vegetales'
+      });
+    }
+
+    setTimeout(() => {
+      onClose();
+    }, 280);
+  }, [locatedMatch, editableCmd, actualizarTarea, agregarCompra, onClose]);
+
+  const handleVoiceToggleTipo = useCallback(() => {
+    setHasUserEdited(true);
+    if (autoConfirmTimerRef.current) clearInterval(autoConfirmTimerRef.current);
+    setAutoConfirmSeconds(null);
+    setEditableCmd(prev => {
+      if (!prev) return null;
+      const nextTipo = prev.tipoTarea === 'accion' ? 'elaboracion' : 'accion';
+      return { ...prev, tipoTarea: nextTipo };
+    });
+  }, []);
+
+  // Registrar callbacks de control por voz en el hook unificado
+  useEffect(() => {
+    if (isOpen) {
+      registerVoiceActions({
+        onConfirm: () => handleConfirmCommand(),
+        onCancel: () => {
+          if (autoConfirmTimerRef.current) clearInterval(autoConfirmTimerRef.current);
+          playCancelChime();
+          onClose();
+        },
+        onToggleTipo: () => handleVoiceToggleTipo(),
+        onSumExisting: () => handleSumToExisting()
+      });
+    }
+    return () => {
+      registerVoiceActions({});
+    };
+  }, [isOpen, handleConfirmCommand, handleVoiceToggleTipo, handleSumToExisting, onClose, registerVoiceActions]);
+
+  // Sincronizar comando interpretado solo si el usuario no está editando manualmente
+  useEffect(() => {
+    if (!hasUserEdited && parsedCommand) {
+      setEditableCmd(parsedCommand);
+    }
+  }, [parsedCommand, hasUserEdited]);
+
+  // Si se abre y se pasa initialCommand o initialText
+  useEffect(() => {
+    if (isOpen) {
+      if (initialCommand) {
+        setEditableCmd(initialCommand);
+      } else if (initialText) {
+        applyCustomText(initialText);
+      } else {
+        setEditableCmd({
+          tipo: 'tarea',
+          tipoTarea: 'elaboracion',
+          rawText: '',
+          nombre: '',
+          cantidad: 1,
+          unidad: 'Kg',
+          partida: partidas[0] || currentStation,
+          prioridad: 'Media',
+          confianza: 0.5
+        });
+      }
+    }
+  }, [isOpen, initialCommand, initialText, applyCustomText, partidas, currentStation]);
+
+  // Si fue disparado por Wake Word y tiene un comando válido, activar cuenta regresiva de auto-inyección manos libres
+  useEffect(() => {
+    if (isOpen && isWakeWordTriggered && editableCmd?.nombre && !hasUserEdited) {
+      setAutoConfirmSeconds(4);
+      autoConfirmTimerRef.current = setInterval(() => {
+        setAutoConfirmSeconds(prev => {
+          if (prev === null || prev <= 1) {
+            clearInterval(autoConfirmTimerRef.current);
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+
+      return () => {
+        if (autoConfirmTimerRef.current) clearInterval(autoConfirmTimerRef.current);
+      };
+    } else {
+      if (autoConfirmTimerRef.current) clearInterval(autoConfirmTimerRef.current);
+      setAutoConfirmSeconds(null);
+    }
+  }, [isOpen, isWakeWordTriggered, editableCmd?.nombre, hasUserEdited]);
+
+  // Disparar auto-confirmación cuando llega a 0
+  useEffect(() => {
+    if (autoConfirmSeconds === 0 && editableCmd?.nombre) {
+      handleConfirmCommand();
+    }
+  }, [autoConfirmSeconds, editableCmd?.nombre, handleConfirmCommand]);
+
+  // Limpiar estado al cerrar
+  useEffect(() => {
+    if (!isOpen) {
+      setHasUserEdited(false);
+      setEditableCmd(null);
+      if (autoConfirmTimerRef.current) clearInterval(autoConfirmTimerRef.current);
+      setAutoConfirmSeconds(null);
+    }
+  }, [isOpen]);
+
+  if (!isOpen) return null;
+
+  const handleSelectIntent = (tipo: VoiceIntentType) => {
+    setHasUserEdited(true);
+    if (autoConfirmTimerRef.current) clearInterval(autoConfirmTimerRef.current);
+    setAutoConfirmSeconds(null);
+    stopListening();
+    setEditableCmd(prev => {
+      const baseName = prev?.nombre || '';
+      const basePartida = prev?.partida || partidas[0] || currentStation;
+      return {
+        tipo,
+        tipoTarea: prev?.tipoTarea || 'elaboracion',
+        rawText: prev?.rawText || '',
+        nombre: baseName,
+        cantidad: prev?.cantidad || 1,
+        unidad: prev?.unidad || 'Kg',
+        partida: basePartida,
+        prioridad: prev?.prioridad || 'Media',
+        minutos: prev?.minutos || 5,
+        categoria: prev?.categoria || 'Vegetales',
+        confianza: 1
+      };
+    });
+  };
+
+  const handleUpdateField = (partial: Partial<ParsedVoiceCommand>) => {
+    setHasUserEdited(true);
+    if (autoConfirmTimerRef.current) clearInterval(autoConfirmTimerRef.current);
+    setAutoConfirmSeconds(null);
+    setEditableCmd(prev => (prev ? { ...prev, ...partial } : null));
   };
 
   const handleResetSession = () => {
     setHasUserEdited(false);
+    if (autoConfirmTimerRef.current) clearInterval(autoConfirmTimerRef.current);
+    setAutoConfirmSeconds(null);
     resetCommand();
     setEditableCmd({
       tipo: 'tarea',
@@ -265,6 +390,8 @@ export function VoiceAssistantModal({ isOpen, onClose, currentStation = 'Saucier
 
   const handleApplyTemplate = (sampleText: string) => {
     setHasUserEdited(false);
+    if (autoConfirmTimerRef.current) clearInterval(autoConfirmTimerRef.current);
+    setAutoConfirmSeconds(null);
     applyCustomText(sampleText);
     stopListening();
   };
@@ -293,24 +420,68 @@ export function VoiceAssistantModal({ isOpen, onClose, currentStation = 'Saucier
                 <h2 className="text-base sm:text-lg font-serif font-black tracking-wider text-amber-400">
                   CUADRADITO DE VOZ PRO
                 </h2>
-                <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md bg-amber-500/20 text-amber-300 border border-amber-500/30">
-                  v2.0 Táctil
-                </span>
+                {isWakeWordTriggered && (
+                  <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 animate-pulse">
+                    Oye Chef 🎙️
+                  </span>
+                )}
+                {!isWakeWordTriggered && (
+                  <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                    v2.9 Manos Libres
+                  </span>
+                )}
               </div>
               <p className="text-[11px] uppercase tracking-widest text-stone-400 font-semibold">
-                Centro Interactivo Manos Libres
+                Control Manos Libres y Táctil
               </p>
             </div>
           </div>
 
           <button
-            onClick={onClose}
+            onClick={() => {
+              if (autoConfirmTimerRef.current) clearInterval(autoConfirmTimerRef.current);
+              onClose();
+            }}
             className="w-9 h-9 rounded-xl bg-stone-800 hover:bg-stone-700 text-stone-300 hover:text-white flex items-center justify-center transition-all cursor-pointer shadow-md active:scale-95"
             title="Cerrar asistente"
           >
             <X className="w-4 h-4" />
           </button>
         </div>
+
+        {/* Barra de Cuenta Regresiva de Auto-Inyección (Manos Libres) */}
+        {autoConfirmSeconds !== null && autoConfirmSeconds > 0 && (
+          <div className="mt-3 p-3 rounded-2xl bg-emerald-950/60 border border-emerald-500/40 text-emerald-300 flex items-center justify-between gap-3 animate-pulse">
+            <div className="flex items-center gap-2">
+              <span className="text-lg">⏱️</span>
+              <div className="text-xs font-bold">
+                <span>Inyectando en </span>
+                <span className="text-sm font-black font-mono text-emerald-200">{autoConfirmSeconds}s</span>
+                <span className="block text-[10px] font-medium text-emerald-400/80">Di "Listo", "Sumar" o "Cancelar"</span>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  if (autoConfirmTimerRef.current) clearInterval(autoConfirmTimerRef.current);
+                  setAutoConfirmSeconds(null);
+                  setHasUserEdited(true);
+                }}
+                className="px-2.5 py-1 rounded-lg bg-stone-800 hover:bg-stone-700 text-stone-200 text-xs font-bold cursor-pointer"
+              >
+                Pausar
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmCommand}
+                className="px-3 py-1 rounded-lg bg-emerald-500 text-stone-950 text-xs font-black uppercase cursor-pointer"
+              >
+                Inyectar Ya
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Sin soporte en el navegador */}
         {!isSupported ? (
@@ -371,8 +542,8 @@ export function VoiceAssistantModal({ isOpen, onClose, currentStation = 'Saucier
                 </button>
               </div>
 
-              {/* Indicador de Estado */}
-              <div className="flex items-center gap-2 mt-2">
+              {/* Indicador de Estado y Atajos por Voz */}
+              <div className="flex flex-col items-center gap-1.5 mt-2">
                 <span className={`text-[11px] font-bold uppercase tracking-wider px-3 py-1 rounded-full border ${
                   isListening
                     ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30 animate-pulse'
@@ -380,6 +551,11 @@ export function VoiceAssistantModal({ isOpen, onClose, currentStation = 'Saucier
                 }`}>
                   {isListening ? '🎙️ Escuchando... habla con calma' : '⏸️ Micrófono pausado • Puedes editar'}
                 </span>
+
+                <div className="flex items-center gap-2 text-[10px] text-stone-400 font-medium">
+                  <Volume2 className="w-3 h-3 text-amber-400" />
+                  <span>Di <strong className="text-white">"Confirmar"</strong>, <strong className="text-white">"Sumar"</strong>, <strong className="text-white">"Cancelar"</strong> o <strong className="text-white">"Acción"</strong></span>
+                </div>
               </div>
             </div>
 
@@ -416,7 +592,7 @@ export function VoiceAssistantModal({ isOpen, onClose, currentStation = 'Saucier
                 </div>
               ) : (
                 <p className="text-[11px] text-stone-500 italic">
-                  Di por ejemplo: <span className="text-stone-300">"Agregar 5 kilos de cebolla a {partidas[0] || 'la cocina'}"</span>
+                  Di por ejemplo: <span className="text-stone-300">"Falta agregar cortar puerros"</span> o <span className="text-stone-300">"Falta comprar 5 kilos de cebolla"</span>
                 </p>
               )}
             </div>
@@ -474,7 +650,7 @@ export function VoiceAssistantModal({ isOpen, onClose, currentStation = 'Saucier
                           : 'text-stone-400 hover:text-stone-200'
                       }`}
                     >
-                      <span>📌 Acción</span>
+                      <span>⚡ Acción Operativa</span>
                     </button>
                     <button
                       type="button"
@@ -489,7 +665,7 @@ export function VoiceAssistantModal({ isOpen, onClose, currentStation = 'Saucier
                           : 'text-stone-400 hover:text-stone-200'
                       }`}
                     >
-                      <span>⚖️ Elaboración</span>
+                      <span>⚖️ Elaboración Pesada</span>
                     </button>
                   </div>
                 )}
@@ -536,13 +712,55 @@ export function VoiceAssistantModal({ isOpen, onClose, currentStation = 'Saucier
                   </div>
                 </div>
 
+                {/* Banner Inteligente: Item Ya Localizado en el Sistema ("localice que ya lo tiene") */}
+                {locatedMatch && (
+                  <div className="p-3 rounded-2xl bg-amber-950/70 border-2 border-amber-500/70 text-amber-200 flex flex-col gap-2 shadow-lg animate-in fade-in duration-200">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex items-start gap-2.5">
+                        <span className="text-xl shrink-0 mt-0.5">📍</span>
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-[11px] font-black uppercase tracking-wider text-amber-300">
+                              ¡Ya localizado en {locatedMatch.partida || 'Cocina'}!
+                            </span>
+                            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-md ${
+                              locatedMatch.estado === 'Completado' ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40' :
+                              locatedMatch.estado === 'En Proceso' ? 'bg-sky-500/20 text-sky-300 border border-sky-500/40' :
+                              'bg-amber-500/20 text-amber-300 border border-amber-500/40'
+                            }`}>
+                              {locatedMatch.estado || locatedMatch.type}
+                            </span>
+                          </div>
+                          <p className="text-xs font-bold text-white mt-0.5">
+                            "{locatedMatch.nombre}"
+                            {locatedMatch.cantidad !== undefined ? ` • ${locatedMatch.cantidad} ${locatedMatch.unidad || 'Kg'}` : ''}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2 pt-1 border-t border-amber-500/30">
+                      {locatedMatch.type === 'tarea' && locatedMatch.tipoTarea !== 'accion' && (
+                        <button
+                          type="button"
+                          onClick={handleSumToExisting}
+                          className="flex-1 min-h-[36px] px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 active:scale-95 text-stone-950 font-black text-xs uppercase tracking-wider flex items-center justify-center gap-1.5 shadow-md cursor-pointer transition-all"
+                        >
+                          <span>➕ Sumar {(editableCmd?.cantidad || 1)} {editableCmd?.unidad || 'Kg'} a existente</span>
+                        </button>
+                      )}
+                      <span className="text-[10px] text-stone-400 italic">o confirma para crear nueva</span>
+                    </div>
+                  </div>
+                )}
+
                 {/* Banner Informativo para Acción Operativa (sin kilos) */}
                 {activeIntent === 'tarea' && editableCmd.tipoTarea === 'accion' && (
                   <div className="p-3 rounded-xl bg-sky-950/40 border border-sky-500/30 text-sky-200 text-xs flex items-center gap-2.5">
-                    <span className="text-lg">📌</span>
+                    <span className="text-lg">⚡</span>
                     <div>
                       <span className="font-bold block text-sky-300">Acción Operativa Pura</span>
-                      <span className="text-[11px] text-sky-400/80">Sin kilos ni números asignados. Lista para ejecución inmediata.</span>
+                      <span className="text-[11px] text-sky-400/80">Sin unidades métricas. Lista para ejecución inmediata por la brigada.</span>
                     </div>
                   </div>
                 )}
@@ -694,7 +912,7 @@ export function VoiceAssistantModal({ isOpen, onClose, currentStation = 'Saucier
                   </div>
                 )}
 
-                {/* 5. Selector de Partidas Personalizadas (Tarea, Agotado, Temporizador) */}
+                {/* 5. Selector de Partidas Personalizadas */}
                 {(activeIntent === 'tarea' || activeIntent === 'agotado' || activeIntent === 'temporizador') && partidas.length > 0 && (
                   <div>
                     <label className="text-[10px] uppercase font-bold text-stone-400 tracking-wider block mb-1.5 flex items-center gap-1">
@@ -800,6 +1018,7 @@ export function VoiceAssistantModal({ isOpen, onClose, currentStation = 'Saucier
 
               <div className="flex flex-wrap gap-1.5">
                 {[
+                  { text: `Falta picar cebolla`, label: '⚡ Picar Cebolla' },
                   { text: `5 Kg Cebolla a ${partidas[0] || 'Garde Manger'}`, label: '🧅 5 Kg Cebolla' },
                   { text: 'Comprar 10 litros de nata', label: '🥛 Comprar Nata' },
                   { text: 'Agotado Lubina salvaje', label: '🛑 Agotado Lubina' },

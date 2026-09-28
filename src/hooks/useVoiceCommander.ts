@@ -18,6 +18,17 @@ export interface ParsedVoiceCommand {
   confianza: number; // 0 to 1
 }
 
+export interface LocatedExistingItem {
+  type: 'tarea' | 'compra' | 'agotado';
+  id: string;
+  nombre: string;
+  partida?: string;
+  estado?: string;
+  cantidad?: number;
+  unidad?: string;
+  tipoTarea?: 'accion' | 'elaboracion';
+}
+
 interface SpeechRecognitionErrorEvent extends Event {
   error: string;
   message?: string;
@@ -69,96 +80,194 @@ export function deduplicateText(text: string): string {
   return words.join(' ');
 }
 
-/**
- * Une los resultados emitidos por Web Speech API resolviendo el bug de acumulación de Chrome en Android,
- * los solapamientos de palabras y las emisiones idénticas repetidas.
- */
-export function mergeTranscriptResults(results: string[]): string {
-  if (!results || results.length === 0) return '';
-  let merged = '';
+export const ACTION_VERBS = [
+  'cortar', 'corta', 'cortado',
+  'picar', 'pica', 'picado',
+  'limpiar', 'limpia', 'limpiado',
+  'descongelar', 'descongela', 'descongelado',
+  'repasar', 'repasa', 'repasado',
+  'montar', 'monta', 'montado',
+  'pelar', 'pela', 'pelado',
+  'deshuesar', 'deshuesa', 'deshuesado',
+  'organizar', 'organiza', 'organizado',
+  'marcar', 'marca', 'marcado',
+  'rallar', 'ralla', 'rallado',
+  'laminar', 'lamina', 'laminado',
+  'tornear', 'tornea', 'torneado',
+  'pochar', 'pocha', 'pochado',
+  'sofreir', 'sofrie', 'sofrito',
+  'filetear', 'filetea', 'fileteado',
+  'porcionar', 'porciona', 'porcionado',
+  'envasar', 'envasa', 'envasado',
+  'rotular', 'rotula', 'rotulado',
+  'ordenar', 'ordena', 'ordenado',
+  'desalar', 'desala', 'desalado',
+  'hidratar', 'hidrata', 'hidratado',
+  'marinar', 'marina', 'marinado',
+  'blanquear', 'blanquea', 'blanqueado',
+  'desespinar', 'desespina', 'desespinado',
+  'cocer', 'cuece', 'cocido',
+  'hervir', 'hierve', 'hervido',
+  'asar', 'asa', 'asado',
+  'hornear', 'hornea', 'horneado',
+  'freir', 'freír', 'frie', 'frito',
+  'reducir', 'reduce', 'reducido',
+  'colar', 'cuela', 'colado',
+  'filtrar', 'filtra', 'filtrado',
+  'emulsionar', 'emulsiona', 'emulsionado',
+  'batir', 'bate', 'batido',
+  'triturar', 'tritura', 'triturado',
+  'pesar', 'pesa', 'pesado',
+  'etiquetar', 'etiqueta', 'etiquetado',
+  'fechar', 'fecha', 'fechado',
+  'temperar', 'atemperar', 'atempera', 'atemperado',
+  'enfriar', 'enfria', 'enfriado',
+  'abatir', 'abate', 'abatido',
+  'desmigar', 'desmiga', 'desmigado',
+  'racionar', 'raciona', 'racionado',
+  'preparar', 'prepara', 'preparado',
+  'hacer', 'haz', 'hecho',
+  // Verbos de acción adicionales en brigada
+  'revisar', 'revisa', 'revisado',
+  'comprobar', 'comprueba', 'comprobado',
+  'rellenar', 'rellena', 'rellenado',
+  'cambiar', 'cambia', 'cambiado',
+  'sacar', 'saca', 'sacado',
+  'guardar', 'guarda', 'guardado',
+  'reponer', 'repón', 'repon', 'repuesto'
+];
 
-  for (const raw of results) {
-    const text = (raw || '').trim();
-    if (!text) continue;
-
-    if (!merged) {
-      merged = text;
-      continue;
-    }
-
-    const mergedLower = merged.toLowerCase();
-    const textLower = text.toLowerCase();
-
-    // 1. Emisiones idénticas emitidas por Chrome Android
-    if (mergedLower === textLower) continue;
-
-    // 2. Modo acumulativo de Android: la nueva emisión contiene todo lo anterior y algo más
-    if (textLower.startsWith(mergedLower)) {
-      merged = text;
-      continue;
-    }
-
-    // 3. Si la nueva emisión ya está contenida al final de lo acumulado
-    if (mergedLower.endsWith(textLower)) continue;
-
-    // 4. Comprobación de solapamiento de palabras en la costura
-    const mergedWords = merged.split(/\s+/);
-    const textWords = text.split(/\s+/);
-    let maxOverlap = 0;
-
-    const maxCheck = Math.min(mergedWords.length, textWords.length);
-    for (let k = maxCheck; k >= 1; k--) {
-      const endSlice = mergedWords.slice(mergedWords.length - k).map(w => w.toLowerCase()).join(' ');
-      const startSlice = textWords.slice(0, k).map(w => w.toLowerCase()).join(' ');
-      if (endSlice === startSlice) {
-        maxOverlap = k;
-        break;
-      }
-    }
-
-    if (maxOverlap > 0) {
-      const newPart = textWords.slice(maxOverlap).join(' ');
-      if (newPart) {
-        merged = merged + ' ' + newPart;
-      }
-    } else {
-      merged = merged + ' ' + text;
-    }
-  }
-
-  return deduplicateText(merged.trim());
+export function stripPrefixes(text: string): string {
+  return text.trim().toLowerCase()
+    .replace(/\b(urgente|prioridad urgente|prioridad crítica|prioridad critica|prioridad alta|prioridad media|prioridad baja)\b/gi, '')
+    .replace(/^(oye|oiga|atento|escucha)?\s*chef\b[:,\s]*/i, '')
+    .replace(/^misepro\b[:,\s]*/i, '')
+    .replace(/^(por favor|hay que|toca|tienes que|tenemos que|favor de|vamos a|debes)\s+/i, '')
+    .replace(/^(hace falta agregar|hace falta añadir|hace falta poner|hace falta hacer|hace falta|falta agregar|falta añadir|falta poner|falta por|falta hacer|falta)\s+/i, '')
+    .replace(/^(agregar|añadir|crear tarea|crear|anotar tarea|anotar|apuntar|poner|registra|registrar|meter)\s+/i, '')
+    .trim();
 }
 
-/**
- * Extrae únicamente las palabras nuevas de la transcripción provisional (interim)
- * que aún no han sido integradas en la transcripción definitiva (final).
- */
-export function extractInterimDelta(finalText: string, interimText: string): string {
-  if (!interimText) return '';
-  const f = finalText.trim().toLowerCase();
-  const i = interimText.trim().toLowerCase();
+export function startsWithActionVerb(text: string): boolean {
+  const stripped = stripPrefixes(text);
+  const firstWord = stripped.split(/\s+/)[0];
+  return ACTION_VERBS.includes(firstWord);
+}
 
-  if (!f) return interimText.trim();
-  if (f === i || f.endsWith(i)) return '';
-  if (i.startsWith(f)) {
-    return interimText.trim().slice(finalText.trim().length).trim();
+export function containsActionVerb(text: string): boolean {
+  const stripped = stripPrefixes(text);
+  const words = stripped.split(/\s+/);
+  return words.some(w => ACTION_VERBS.includes(w));
+}
+
+export function extractMetricQuantity(text: string): { 
+  hasMetric: boolean; 
+  cantidad?: number; 
+  unidad?: string; 
+  textoRestante: string;
+} {
+  let cleanText = text;
+
+  // Fracciones en español
+  cleanText = cleanText.replace(/\bmedio\s+kilo(?:\s+de)?\b/gi, '0.5 kg de ');
+  cleanText = cleanText.replace(/\bkilo\s+y\s+medio(?:\s+de)?\b/gi, '1.5 kg de ');
+  cleanText = cleanText.replace(/\b(\d+)\s+kilos?\s+y\s+medio(?:\s+de)?\b/gi, (_m, n) => `${parseFloat(n) + 0.5} kg de `);
+  cleanText = cleanText.replace(/\bdos\s+kilos\s+y\s+medio(?:\s+de)?\b/gi, '2.5 kg de ');
+  cleanText = cleanText.replace(/\btres\s+kilos\s+y\s+medio(?:\s+de)?\b/gi, '3.5 kg de ');
+  cleanText = cleanText.replace(/\bcuatro\s+kilos\s+y\s+medio(?:\s+de)?\b/gi, '4.5 kg de ');
+  cleanText = cleanText.replace(/\bcinco\s+kilos\s+y\s+medio(?:\s+de)?\b/gi, '5.5 kg de ');
+  cleanText = cleanText.replace(/\bmedia\s+docena(?:\s+de)?\b/gi, '6 unidades de ');
+  cleanText = cleanText.replace(/\buna\s+docena(?:\s+de)?\b/gi, '12 unidades de ');
+
+  // Convertir palabras numéricas seguidas de unidad culinaria
+  cleanText = cleanText.replace(
+    /\b(un|una|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|diez)\s+(kilos?|kg|litros?|l|gramos?|gr|g|unidades?|ud|uds|botellas?|paquetes?|manojos?|piezas?|raciones|latas|bandejas?)(?:\s+de)?\b/gi,
+    (_match, numWord, unitWord) => {
+      const numMap: Record<string, string> = {
+        un: '1', una: '1', dos: '2', tres: '3', cuatro: '4', cinco: '5',
+        seis: '6', siete: '7', ocho: '8', nueve: '9', diez: '10'
+      };
+      return `${numMap[numWord.toLowerCase()] || numWord} ${unitWord} de `;
+    }
+  );
+
+  // Consumir opcionalmente "de" después de la unidad para evitar "cortar de cebolla"
+  const regexWithUnit = /(\d+(?:[.,]\d+)?)\s*(kilos?|kg|litros?|l|gramos?|gr|g|unidades?|ud|uds|botellas?|paquetes?|manojo|piezas?|raciones|latas|bandejas?)(?:\s+de\b)?/i;
+  const match = cleanText.match(regexWithUnit);
+
+  if (match) {
+    const rawVal = match[1].replace(',', '.');
+    const rawUnit = match[2].toLowerCase();
+    const cantidad = parseFloat(rawVal) || 1;
+    
+    let unidad = 'Kg';
+    if (rawUnit.startsWith('l') && !rawUnit.startsWith('lat')) unidad = 'Litros';
+    else if (rawUnit.startsWith('g')) unidad = 'Gramos';
+    else if (rawUnit.startsWith('u') || rawUnit.startsWith('b') || rawUnit.startsWith('p') || rawUnit.startsWith('m') || rawUnit.startsWith('r') || rawUnit.startsWith('lat')) unidad = 'Unidades';
+    else unidad = 'Kg';
+
+    let textoRestante = cleanText.replace(match[0], '').replace(/\s{2,}/g, ' ').trim();
+    // Limpiar preposición suelta "de" al inicio o tras verbo de acción
+    textoRestante = textoRestante.replace(/^de\s+/i, '');
+    return { hasMetric: true, cantidad, unidad, textoRestante };
   }
 
-  const fWords = f.split(/\s+/);
-  const iWords = i.split(/\s+/);
-  let overlap = 0;
-  for (let k = Math.min(fWords.length, iWords.length); k >= 1; k--) {
-    if (fWords.slice(-k).join(' ') === iWords.slice(0, k).join(' ')) {
-      overlap = k;
-      break;
+  // Comprobar si hay un número aislado
+  const numOnlyMatch = cleanText.match(/\b(\d+(?:[.,]\d+)?)(?:\s+de\b)?/);
+  if (numOnlyMatch) {
+    const rawVal = numOnlyMatch[1].replace(',', '.');
+    const cantidad = parseFloat(rawVal) || 1;
+    let textoRestante = cleanText.replace(numOnlyMatch[0], '').replace(/\s{2,}/g, ' ').trim();
+    textoRestante = textoRestante.replace(/^de\s+/i, '');
+    return { hasMetric: true, cantidad, unidad: 'Kg', textoRestante };
+  }
+
+  return { hasMetric: false, textoRestante: cleanText };
+}
+
+function detectPartida(text: string, availableStations: string[] = []): StationName | null {
+  for (const st of availableStations) {
+    const reg = new RegExp(`\\b${st}\\b`, 'i');
+    if (reg.test(text)) {
+      return st;
     }
   }
 
-  if (overlap > 0) {
-    return interimText.trim().split(/\s+/).slice(overlap).join(' ');
+  if (/\b(saucier|salsa|salsas|fondo|fondos|caldo|caldos)\b/i.test(text)) {
+    return availableStations.find(s => s.toLowerCase() === 'saucier') || 'Saucier';
   }
+  if (/\b(garde manger|cuarto frío|cuarto frio|ensalada|ensaladas|vegetal|vegetales)\b/i.test(text)) {
+    return availableStations.find(s => s.toLowerCase() === 'garde manger') || 'Garde Manger';
+  }
+  if (/\b(pescado|pescados|poissonier|marisco|mariscos|mar)\b/i.test(text)) {
+    return availableStations.find(s => s.toLowerCase() === 'pescados') || 'Pescados';
+  }
+  if (/\b(carne|carnes|rôtisseur|rotisseur|asado|asados|parrilla|brasa)\b/i.test(text)) {
+    return availableStations.find(s => s.toLowerCase() === 'carnes') || 'Carnes';
+  }
+  
+  return null;
+}
 
-  return interimText.trim();
+function deduceCategory(name: string): 'Vegetales' | 'Proteinas' | 'Lacteos/Secos' {
+  const n = name.toLowerCase();
+  if (
+    n.includes('carne') || n.includes('pescado') || n.includes('pollo') || 
+    n.includes('solomillo') || n.includes('ternera') || n.includes('cerdo') || 
+    n.includes('atun') || n.includes('atún') || n.includes('merluza') || 
+    n.includes('gambas') || n.includes('marisco') || n.includes('pulpo') ||
+    n.includes('pato') || n.includes('lomo') || n.includes('cordero')
+  ) {
+    return 'Proteinas';
+  }
+  if (
+    n.includes('leche') || n.includes('nata') || n.includes('mantequilla') || 
+    n.includes('harina') || n.includes('azucar') || n.includes('azúcar') || 
+    n.includes('arroz') || n.includes('aceite') || n.includes('queso') || n.includes('huevo')
+  ) {
+    return 'Lacteos/Secos';
+  }
+  return 'Vegetales';
 }
 
 export function parseVoiceCommand(
@@ -167,8 +276,11 @@ export function parseVoiceCommand(
   availableStations: string[] = []
 ): ParsedVoiceCommand {
   const text = deduplicateText(rawInput);
-  const clean = text.toLowerCase();
+  let clean = text.toLowerCase();
   
+  // Limpiar invocación de wake words al inicio si vienen concatenados
+  clean = clean.replace(/^(oye|oiga|atento|escucha)?\s*chef\b[:,\s]*/i, '').replace(/^misepro\b[:,\s]*/i, '').trim();
+
   if (!clean || clean.length < 2) {
     return {
       tipo: 'tarea',
@@ -180,6 +292,14 @@ export function parseVoiceCommand(
       prioridad: 'Media',
       confianza: 0.1
     };
+  }
+
+  // Detectar prioridad
+  let prioridad: 'Critica' | 'Media' | 'Baja' = 'Media';
+  if (/\b(urgente|crítica|critica|alta|para ya)\b/i.test(clean)) {
+    prioridad = 'Critica';
+  } else if (/\b(baja|tranquilo|después|despues)\b/i.test(clean)) {
+    prioridad = 'Baja';
   }
   
   // 1. Detectar Intención: TEMPORIZADOR
@@ -231,17 +351,18 @@ export function parseVoiceCommand(
     clean.includes('no queda') ||
     clean.includes('marcar agotado')
   ) {
+    const partidaDetectada = detectPartida(clean, availableStations) || defaultStation;
     let nombre = clean
+      .replace(/^(apuntar|anotar|marcar|poner)\s+/gi, '')
       .replace(/marcar agotado/gi, '')
       .replace(/marcar fuera de carta/gi, '')
       .replace(/fuera de carta/gi, '')
       .replace(/agotado/gi, '')
       .replace(/se acab[oó]/gi, '')
       .replace(/no queda/gi, '')
-      .replace(/^el /gi, '')
-      .replace(/^la /gi, '')
-      .replace(/^los /gi, '')
-      .replace(/^las /gi, '')
+      .replace(new RegExp(`\\b(en|a|para)?\\s*${partidaDetectada}\\b`, 'gi'), '')
+      .trim()
+      .replace(/^(el|la|los|las)\s+/gi, '')
       .trim();
 
     nombre = deduplicateText(nombre);
@@ -252,23 +373,32 @@ export function parseVoiceCommand(
       tipo: 'agotado',
       rawText: text,
       nombre,
-      partida: detectPartida(clean, availableStations) || defaultStation,
+      partida: partidaDetectada,
       motivo: 'Agotado durante el servicio (Voz)',
       confianza: 0.92
     };
   }
 
-  // 3. Detectar Intención: COMPRA / PEDIDO
-  if (
+  // 3. Evaluar si es una TAREA (Mise en Place) con "falta agregar...", "falta [verbo]" o verbos de acción
+  const cleanWithoutPrio = clean.replace(/\b(urgente|prioridad urgente|prioridad crítica|prioridad critica|prioridad alta|prioridad media|prioridad baja)\b/gi, '').trim();
+  const hasFaltaAgregar = /\b(falta|hace falta)\s+(agregar|añadir|poner|hacer)\b/i.test(cleanWithoutPrio);
+  const hasFaltaAccion = /\b(falta|hace falta)\s+/i.test(cleanWithoutPrio) && containsActionVerb(cleanWithoutPrio);
+  const isDirectTaskCommand = /^(agregar|añadir|crear|anotar tarea|poner)\s+/i.test(cleanWithoutPrio);
+  const isExplicitAction = startsWithActionVerb(cleanWithoutPrio) || hasFaltaAccion;
+
+  // 4. Detectar Intención: COMPRA / PEDIDO
+  const isExplicitCompra = (
     clean.includes('comprar') || 
     clean.includes('compra') || 
     clean.includes('pedir') || 
     clean.includes('pedido') ||
-    clean.includes('falta') ||
     clean.includes('anotar compra') ||
-    clean.includes('apuntar compra')
-  ) {
-    const { cantidad, unidad, textoRestante } = extractQuantityAndUnit(clean);
+    clean.includes('apuntar compra') ||
+    (clean.includes('falta') && !hasFaltaAgregar && !hasFaltaAccion && !isDirectTaskCommand)
+  );
+
+  if (isExplicitCompra) {
+    const { cantidad, unidad, textoRestante } = extractMetricQuantity(cleanWithoutPrio);
     
     let nombre = textoRestante
       .replace(/anotar compra/gi, '')
@@ -278,7 +408,9 @@ export function parseVoiceCommand(
       .replace(/pedir/gi, '')
       .replace(/pedido/gi, '')
       .replace(/falta/gi, '')
-      .replace(/^de /gi, '')
+      .trim()
+      .replace(/^de\s+/gi, '')
+      .replace(/^(un|una|el|la|los|las)\s+/gi, '')
       .trim();
 
     nombre = deduplicateText(nombre);
@@ -298,44 +430,33 @@ export function parseVoiceCommand(
     };
   }
 
-  // 4. Intención por Defecto: TAREA / MISE EN PLACE
-  const metric = extractMetricQuantity(clean);
-  const isAction = startsWithActionVerb(clean) && !metric.hasMetric;
+  // 5. Intención por Defecto: TAREA / MISE EN PLACE
+  const metric = extractMetricQuantity(cleanWithoutPrio);
+  const isAction = (isExplicitAction || startsWithActionVerb(cleanWithoutPrio)) && !metric.hasMetric;
   const tipoTarea: 'accion' | 'elaboracion' = isAction ? 'accion' : 'elaboracion';
 
-  const textoBase = isAction ? clean : (metric.hasMetric ? metric.textoRestante : clean);
+  const textoBase = isAction ? cleanWithoutPrio : (metric.hasMetric ? metric.textoRestante : cleanWithoutPrio);
   const partida = detectPartida(clean, availableStations) || defaultStation;
   
-  let nombre = textoBase
-    .replace(/^(por favor|hay que|toca|tienes que|favor de|vamos a|debes)\s+/gi, '')
-    .replace(/^(agregar|añadir|crear|anotar|apuntar)\s+/gi, '')
+  let nombre = stripPrefixes(textoBase)
     .replace(/a la partida de/gi, '')
     .replace(/en la partida de/gi, '')
     .replace(/a la partida/gi, '')
     .replace(/en la partida/gi, '')
-    .replace(/prioridad urgente/gi, '')
-    .replace(/prioridad crítica/gi, '')
-    .replace(/prioridad critica/gi, '')
-    .replace(/prioridad media/gi, '')
-    .replace(/prioridad baja/gi, '')
-    .replace(/\burgente\b/gi, '')
-    .replace(/^de /gi, '');
+    .replace(/^de\s+/gi, '');
 
   if (partida) {
-    const regPartida = new RegExp(`(a |en )?${partida}`, 'gi');
+    const regPartida = new RegExp(`\\b(a|en|para)\\s+(?:la partida de\\s*)?${partida}\\b|\\b(?:la partida de\\s*)${partida}\\b`, 'gi');
     nombre = nombre.replace(regPartida, '');
   }
 
-  nombre = deduplicateText(nombre.trim());
-  if (!nombre) nombre = clean;
-  nombre = nombre.charAt(0).toUpperCase() + nombre.slice(1);
+  // Sanear "cortar de cebolla" -> "cortar cebolla" para verbos de acción
+  const verbDeRegex = new RegExp(`^(${ACTION_VERBS.join('|')})\\s+de\\s+`, 'i');
+  nombre = nombre.replace(verbDeRegex, '$1 ');
 
-  let prioridad: 'Critica' | 'Media' | 'Baja' = 'Media';
-  if (clean.includes('urgente') || clean.includes('crítica') || clean.includes('critica') || clean.includes('alta')) {
-    prioridad = 'Critica';
-  } else if (clean.includes('baja') || clean.includes('tranquilo') || clean.includes('después')) {
-    prioridad = 'Baja';
-  }
+  nombre = deduplicateText(nombre.trim());
+  if (!nombre) nombre = cleanWithoutPrio;
+  nombre = nombre.charAt(0).toUpperCase() + nombre.slice(1);
 
   return {
     tipo: 'tarea',
@@ -350,150 +471,250 @@ export function parseVoiceCommand(
   };
 }
 
-function detectPartida(text: string, availableStations: string[] = []): StationName | null {
-  for (const st of availableStations) {
-    if (text.includes(st.toLowerCase())) {
-      return st;
-    }
+/**
+ * Localiza si un ingrediente, acción o preparación ya existe en el tablero Kanban o en compras
+ */
+export function locateExistingItem(
+  query: string,
+  targetPartida: string | undefined,
+  kanbanTareas: { id: string; nombre: string; partida: string; estado: string; cantidad?: number; unidad?: string; tipo?: 'accion' | 'elaboracion' }[] = [],
+  comprasPendientes: { id: string; ingrediente: string; cantidad: number }[] = [],
+  agotados86: { id: string; nombre: string; partida: string }[] = []
+): LocatedExistingItem | null {
+  if (!query || query.trim().length < 2) return null;
+  
+  const q = query.trim().toLowerCase();
+  const strippedQ = stripPrefixes(q);
+  // Extraer palabras clave eliminando verbos de acción
+  const wordsQ = strippedQ.split(/\s+/).filter(w => !ACTION_VERBS.includes(w) && w.length > 2);
+  const coreNoun = wordsQ.join(' ') || strippedQ;
+
+  // 1. Kanban Tareas
+  const matchingTasks = kanbanTareas.filter(t => {
+    const tName = t.nombre.toLowerCase();
+    const tStripped = stripPrefixes(tName);
+    const tWords = tStripped.split(/\s+/).filter(w => !ACTION_VERBS.includes(w) && w.length > 2);
+    const tCore = tWords.join(' ') || tStripped;
+
+    if (tName === q || tStripped === strippedQ || tCore === coreNoun) return true;
+    if (coreNoun.length >= 3 && (tName.includes(coreNoun) || coreNoun.includes(tName) || tCore.includes(coreNoun) || coreNoun.includes(tCore))) return true;
+    return false;
+  });
+
+  if (matchingTasks.length > 0) {
+    const best = (targetPartida ? matchingTasks.find(t => t.partida.toLowerCase() === targetPartida.toLowerCase() && t.estado !== 'Completado') : null)
+      || matchingTasks.find(t => t.estado !== 'Completado')
+      || matchingTasks[0];
+
+    return {
+      type: 'tarea',
+      id: best.id,
+      nombre: best.nombre,
+      partida: best.partida,
+      estado: best.estado,
+      cantidad: best.cantidad,
+      unidad: best.unidad,
+      tipoTarea: best.tipo
+    };
   }
 
-  if (text.includes('saucier') || text.includes('salsa') || text.includes('fondo') || text.includes('caldo')) {
-    return availableStations.find(s => s.toLowerCase() === 'saucier') || 'Saucier';
+  // 2. Compras
+  const matchingCompra = comprasPendientes.find(c => {
+    const cName = c.ingrediente.toLowerCase();
+    return cName === q || cName === coreNoun || (coreNoun.length >= 3 && (cName.includes(coreNoun) || coreNoun.includes(cName)));
+  });
+
+  if (matchingCompra) {
+    return {
+      type: 'compra',
+      id: matchingCompra.id,
+      nombre: matchingCompra.ingrediente,
+      cantidad: matchingCompra.cantidad,
+      unidad: 'Kg'
+    };
   }
-  if (text.includes('garde manger') || text.includes('cuarto frío') || text.includes('cuarto frio') || text.includes('ensalada') || text.includes('vegetal')) {
-    return availableStations.find(s => s.toLowerCase() === 'garde manger') || 'Garde Manger';
+
+  // 3. Agotados 86
+  const matching86 = agotados86.find(a => {
+    const aName = a.nombre.toLowerCase();
+    return aName === q || aName === coreNoun || (coreNoun.length >= 3 && (aName.includes(coreNoun) || coreNoun.includes(aName)));
+  });
+
+  if (matching86) {
+    return {
+      type: 'agotado',
+      id: matching86.id,
+      nombre: matching86.nombre,
+      partida: matching86.partida
+    };
   }
-  if (text.includes('pescado') || text.includes('poissonier') || text.includes('marisco') || text.includes('mar') || text.includes('pescados')) {
-    return availableStations.find(s => s.toLowerCase() === 'pescados') || 'Pescados';
-  }
-  if (text.includes('carne') || text.includes('carnes') || text.includes('rôtisseur') || text.includes('rotisseur') || text.includes('asado') || text.includes('parrilla') || text.includes('brasa')) {
-    return availableStations.find(s => s.toLowerCase() === 'carnes') || 'Carnes';
-  }
-  
+
   return null;
 }
 
-export const ACTION_VERBS = [
-  'cortar', 'corta', 'cortado',
-  'picar', 'pica', 'picado',
-  'limpiar', 'limpia', 'limpiado',
-  'descongelar', 'descongela', 'descongelado',
-  'repasar', 'repasa', 'repasado',
-  'montar', 'monta', 'montado',
-  'pelar', 'pela', 'pelado',
-  'deshuesar', 'deshuesa', 'deshuesado',
-  'organizar', 'organiza', 'organizado',
-  'marcar', 'marca', 'marcado',
-  'rallar', 'ralla', 'rallado',
-  'laminar', 'lamina', 'laminado',
-  'tornear', 'tornea',
-  'pochar', 'pocha',
-  'sofreir', 'sofrie',
-  'filetear', 'filetea', 'fileteado',
-  'porcionar', 'porciona', 'porcionado',
-  'envasar', 'envasa', 'envasado',
-  'rotular', 'rotula',
-  'ordenar', 'ordena',
-  'desalar', 'desala',
-  'hidratar', 'hidrata',
-  'marinar', 'marina',
-  'blanquear', 'blanquea',
-  'desespinar', 'desespina'
+/**
+ * Generadores de Chimes Culinarios por Web Audio API (Offline, Zero Dependencias)
+ */
+export function playWakeChime() {
+  try {
+    const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+    if (AudioCtx) {
+      const ctx = new AudioCtx();
+      const now = ctx.currentTime;
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(523.25, now); // C5
+      osc.frequency.setValueAtTime(659.25, now + 0.08); // E5
+      osc.frequency.setValueAtTime(783.99, now + 0.16); // G5
+
+      gain.gain.setValueAtTime(0.18, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.38);
+
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(now);
+      osc.stop(now + 0.38);
+    }
+  } catch {}
+
+  if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
+    navigator.vibrate([40, 30, 60]);
+  }
+}
+
+export function playSuccessChime() {
+  try {
+    const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+    if (AudioCtx) {
+      const ctx = new AudioCtx();
+      const now = ctx.currentTime;
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(587.33, now); // D5
+      osc.frequency.setValueAtTime(880, now + 0.09); // A5
+
+      gain.gain.setValueAtTime(0.18, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
+
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(now);
+      osc.stop(now + 0.35);
+    }
+  } catch {}
+
+  if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
+    navigator.vibrate([60, 40, 80]);
+  }
+}
+
+export function playCancelChime() {
+  try {
+    const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+    if (AudioCtx) {
+      const ctx = new AudioCtx();
+      const now = ctx.currentTime;
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(440, now); // A4
+      osc.frequency.setValueAtTime(329.63, now + 0.08); // E4
+
+      gain.gain.setValueAtTime(0.12, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.25);
+
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(now);
+      osc.stop(now + 0.25);
+    }
+  } catch {}
+}
+
+export function playAlertChime() {
+  try {
+    const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+    if (AudioCtx) {
+      const ctx = new AudioCtx();
+      const now = ctx.currentTime;
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(698.46, now); // F5
+      osc.frequency.setValueAtTime(880, now + 0.08); // A5
+
+      gain.gain.setValueAtTime(0.15, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.28);
+
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(now);
+      osc.stop(now + 0.28);
+    }
+  } catch {}
+
+  if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
+    navigator.vibrate([30, 20, 30]);
+  }
+}
+
+const WAKE_WORDS = [
+  'oye chef',
+  'oiga chef',
+  'chef',
+  'atento chef',
+  'escucha chef',
+  'misepro',
+  'mise pro',
+  'oye cocina',
+  'atenta cocina'
 ];
 
-export function startsWithActionVerb(text: string): boolean {
-  const stripped = text.trim().toLowerCase()
-    .replace(/^(por favor|hay que|toca|tienes que|favor de|vamos a|debes)\s+/i, '')
-    .replace(/^(agregar|añadir|crear|anotar|apuntar)\s+/i, '')
-    .trim();
-
-  const firstWord = stripped.split(/\s+/)[0];
-  return ACTION_VERBS.includes(firstWord);
-}
-
-export function extractMetricQuantity(text: string): { 
-  hasMetric: boolean; 
-  cantidad?: number; 
-  unidad?: string; 
-  textoRestante: string;
-} {
-  let cleanText = text;
-  // Convertir palabras numéricas solo cuando preceden a unidades de cocina
-  cleanText = cleanText.replace(
-    /\b(un|una|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|diez)\s+(kilos?|kg|litros?|l|gramos?|gr|g|unidades?|ud|uds|botellas?|paquetes?|manojos?|piezas?|raciones|latas|bandejas?)\b/gi,
-    (_match, numWord, unitWord) => {
-      const numMap: Record<string, string> = {
-        un: '1', una: '1', dos: '2', tres: '3', cuatro: '4', cinco: '5',
-        seis: '6', siete: '7', ocho: '8', nueve: '9', diez: '10'
-      };
-      return `${numMap[numWord.toLowerCase()] || numWord} ${unitWord}`;
+export function checkWakeWord(text: string): { isWake: boolean; remainderText: string } {
+  const clean = text.toLowerCase().trim();
+  for (const w of WAKE_WORDS) {
+    const regex = new RegExp(`^${w}\\b[:\\s,]*`, 'i');
+    if (regex.test(clean)) {
+      const remainder = clean.replace(regex, '').trim();
+      return { isWake: true, remainderText: remainder };
     }
-  );
-
-  const regexWithUnit = /(\d+(?:[.,]\d+)?)\s*(kilos?|kg|litros?|l|gramos?|gr|g|unidades?|ud|uds|botellas?|paquetes?|manojo|piezas?|raciones|latas|bandejas?)\b/i;
-  const match = cleanText.match(regexWithUnit);
-
-  if (match) {
-    const rawVal = match[1].replace(',', '.');
-    const rawUnit = match[2].toLowerCase();
-    const cantidad = parseFloat(rawVal) || 1;
-    
-    let unidad = 'Kg';
-    if (rawUnit.startsWith('l') && !rawUnit.startsWith('lat')) unidad = 'Litros';
-    else if (rawUnit.startsWith('g')) unidad = 'Gramos';
-    else if (rawUnit.startsWith('u') || rawUnit.startsWith('b') || rawUnit.startsWith('p') || rawUnit.startsWith('m') || rawUnit.startsWith('r') || rawUnit.startsWith('lat')) unidad = 'Unidades';
-    else unidad = 'Kg';
-
-    const textoRestante = cleanText.replace(match[0], '').replace(/\s{2,}/g, ' ').trim();
-    return { hasMetric: true, cantidad, unidad, textoRestante };
+    // Si contiene el wake word en cualquier parte
+    const idx = clean.indexOf(w);
+    if (idx !== -1) {
+      const remainder = clean.slice(idx + w.length).replace(/^[:\s,]+/, '').trim();
+      return { isWake: true, remainderText: remainder };
+    }
   }
-
-  // Comprobar si hay un número aislado
-  const numOnlyMatch = cleanText.match(/\b(\d+(?:[.,]\d+)?)\b/);
-  if (numOnlyMatch) {
-    const rawVal = numOnlyMatch[1].replace(',', '.');
-    const cantidad = parseFloat(rawVal) || 1;
-    const textoRestante = cleanText.replace(numOnlyMatch[0], '').replace(/\s{2,}/g, ' ').trim();
-    return { hasMetric: true, cantidad, unidad: 'Kg', textoRestante };
-  }
-
-  return { hasMetric: false, textoRestante: cleanText };
+  return { isWake: false, remainderText: '' };
 }
 
-function extractQuantityAndUnit(text: string): { cantidad: number; unidad: string; textoRestante: string } {
-  const metric = extractMetricQuantity(text);
-  if (metric.hasMetric) {
-    return {
-      cantidad: metric.cantidad || 1,
-      unidad: metric.unidad || 'Kg',
-      textoRestante: metric.textoRestante
-    };
-  }
-  return { cantidad: 1, unidad: 'Kg', textoRestante: text };
+export interface VoiceActionHandlers {
+  onConfirm?: () => void;
+  onCancel?: () => void;
+  onToggleTipo?: () => void;
+  onSumExisting?: () => void;
 }
 
-function deduceCategory(name: string): 'Vegetales' | 'Proteinas' | 'Lacteos/Secos' {
-  const n = name.toLowerCase();
-  if (
-    n.includes('carne') || n.includes('pescado') || n.includes('pollo') || 
-    n.includes('solomillo') || n.includes('ternera') || n.includes('cerdo') || 
-    n.includes('atun') || n.includes('atún') || n.includes('merluza') || 
-    n.includes('gambas') || n.includes('marisco') || n.includes('pulpo') ||
-    n.includes('pato') || n.includes('lomo')
-  ) {
-    return 'Proteinas';
-  }
-  if (
-    n.includes('leche') || n.includes('nata') || n.includes('mantequilla') || 
-    n.includes('harina') || n.includes('azucar') || n.includes('azúcar') || 
-    n.includes('arroz') || n.includes('aceite') || n.includes('queso') || n.includes('huevo')
-  ) {
-    return 'Lacteos/Secos';
-  }
-  return 'Vegetales';
+export interface UseVoiceCommanderOptions {
+  isModalOpen?: boolean;
+  onWakeDetected?: (parsed: ParsedVoiceCommand | null, rawRemainder: string) => void;
+  onVoiceConfirm?: () => void;
+  onVoiceCancel?: () => void;
+  onVoiceToggleTipo?: () => void;
+  onVoiceSumExisting?: () => void;
 }
 
-export function useVoiceCommander(defaultStation: StationName = 'Saucier', availableStations: string[] = []) {
+export function useVoiceCommander(
+  defaultStation: StationName = 'Saucier', 
+  availableStations: string[] = [],
+  options?: UseVoiceCommanderOptions
+) {
   const [isListening, setIsListening] = useState(false);
   const [isSupported, setIsSupported] = useState(true);
   const [transcript, setTranscript] = useState('');
@@ -501,24 +722,55 @@ export function useVoiceCommander(defaultStation: StationName = 'Saucier', avail
   const [parsedCommand, setParsedCommand] = useState<ParsedVoiceCommand | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  const recognitionRef = useRef<any>(null);
-  const silenceTimeoutRef = useRef<any>(null);
+  // Manos Libres (Wake Word Engine)
+  const [wakeWordEnabled, setWakeWordEnabled] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('misepro_wake_word_enabled') === 'true';
+    } catch {
+      return false;
+    }
+  });
+  const [isAmbientListening, setIsAmbientListening] = useState(false);
 
+  const isModalOpen = options?.isModalOpen ?? false;
+  const optionsRef = useRef(options);
+  optionsRef.current = options;
+
+  const dynamicActionsRef = useRef<VoiceActionHandlers>({});
+
+  const recognitionRef = useRef<any>(null);
+  const ambientRecognitionRef = useRef<any>(null);
+  const silenceTimeoutRef = useRef<any>(null);
+  const restartAmbientTimeoutRef = useRef<any>(null);
+
+  const registerVoiceActions = useCallback((handlers: VoiceActionHandlers) => {
+    dynamicActionsRef.current = handlers;
+  }, []);
+
+  // 1. Motor de Dictado Activo (Modal Abierto)
   useEffect(() => {
     const SpeechRecognition = 
-      (window as any).SpeechRecognition || 
-      (window as any).webkitSpeechRecognition;
+      (window as unknown as { SpeechRecognition?: any }).SpeechRecognition || 
+      (window as unknown as { webkitSpeechRecognition?: any }).webkitSpeechRecognition;
 
     if (!SpeechRecognition) {
       setIsSupported(false);
       return;
     }
 
+    if (!isModalOpen) {
+      if (recognitionRef.current) {
+        try {
+          recognitionRef.current.abort();
+        } catch {}
+      }
+      setIsListening(false);
+      return;
+    }
+
     try {
       const recognition = new SpeechRecognition();
-      // continuous = false garantiza que cada locución sea limpia e independiente,
-      // erradicando el bug acumulativo de Chromium en Android ("cortar cebolla cortar cebolla").
-      recognition.continuous = false;
+      recognition.continuous = true;
       recognition.interimResults = true;
       recognition.lang = 'es-ES';
 
@@ -555,45 +807,192 @@ export function useVoiceCommander(defaultStation: StationName = 'Saucier', avail
         if (cleanFinal) {
           setTranscript(cleanFinal);
           setInterimTranscript('');
+
+          // Evaluar comandos de control por voz en vivo
+          const lowerFinal = cleanFinal.toLowerCase().trim();
+          if (/\b(confirmar|guardar|listo|inyectar|oído|oido|vale)\b/i.test(lowerFinal)) {
+            if (dynamicActionsRef.current.onConfirm) {
+              dynamicActionsRef.current.onConfirm();
+            } else {
+              optionsRef.current?.onVoiceConfirm?.();
+            }
+            return;
+          }
+          if (/\b(sumar|añadir cantidad|sumar cantidad|suma)\b/i.test(lowerFinal)) {
+            if (dynamicActionsRef.current.onSumExisting) {
+              dynamicActionsRef.current.onSumExisting();
+              return;
+            }
+          }
+          if (/\b(cancelar|cerrar|atrás|atras|salir)\b/i.test(lowerFinal)) {
+            if (dynamicActionsRef.current.onCancel) {
+              dynamicActionsRef.current.onCancel();
+            } else {
+              optionsRef.current?.onVoiceCancel?.();
+            }
+            return;
+          }
+          if (/\b(acción|accion|operativa)\b/i.test(lowerFinal) && !cleanFinal.includes(' ')) {
+            if (dynamicActionsRef.current.onToggleTipo) {
+              dynamicActionsRef.current.onToggleTipo();
+            } else {
+              optionsRef.current?.onVoiceToggleTipo?.();
+            }
+            return;
+          }
+
           const parsed = parseVoiceCommand(cleanFinal, defaultStation, availableStations);
           setParsedCommand(parsed);
         } else if (cleanInterim && cleanInterim.length >= 3) {
-          // Vista previa en vivo del comando mientras el usuario habla
           const parsed = parseVoiceCommand(cleanInterim, defaultStation, availableStations);
           setParsedCommand(parsed);
         }
       };
 
       recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
-        console.warn('Speech recognition error', event.error);
         if (event.error === 'not-allowed') {
-          setErrorMessage('Permiso de micrófono denegado. Permite el acceso en los ajustes de tu navegador.');
+          setErrorMessage('Permiso de micrófono denegado. Actívalo en los ajustes de tu navegador.');
         } else if (event.error === 'no-speech') {
-          // Ignorar no-speech para no interrumpir al usuario mientras piensa
+          // Ignorar no-speech en cocina
         } else {
-          setErrorMessage(`Aviso de micrófono: ${event.error}`);
+          setErrorMessage(`Aviso micrófono: ${event.error}`);
         }
       };
 
       recognition.onend = () => {
-        setIsListening(false);
+        // En modal abierto, si se detiene por silencio prolongado, reiniciar limpiamente
+        if (isModalOpen) {
+          setTimeout(() => {
+            try {
+              recognition.start();
+            } catch {}
+          }, 300);
+        } else {
+          setIsListening(false);
+        }
       };
 
+      recognition.start();
       recognitionRef.current = recognition;
-    } catch (err: any) {
-      console.error('Error inicializando SpeechRecognition', err);
+    } catch (err) {
+      console.error('Error inicializando SpeechRecognition activo', err);
       setIsSupported(false);
     }
 
+    const currentRec = recognitionRef.current;
+    const currentSilence = silenceTimeoutRef.current;
     return () => {
-      if (silenceTimeoutRef.current) clearTimeout(silenceTimeoutRef.current);
-      if (recognitionRef.current) {
+      if (currentSilence) clearTimeout(currentSilence);
+      if (currentRec) {
         try {
-          recognitionRef.current.abort();
-        } catch (_) {}
+          currentRec.abort();
+        } catch {}
       }
     };
-  }, [defaultStation, availableStations]);
+  }, [isModalOpen, defaultStation, availableStations]);
+
+  // 2. Motor Manos Libres en Standby (Wake Word "Chef" / "Oye Chef")
+  useEffect(() => {
+    const SpeechRecognition = 
+      (window as unknown as { SpeechRecognition?: any }).SpeechRecognition || 
+      (window as unknown as { webkitSpeechRecognition?: any }).webkitSpeechRecognition;
+
+    // Solo corre cuando el modal está CERRADO y wakeWordEnabled está activo
+    if (!SpeechRecognition || !wakeWordEnabled || isModalOpen) {
+      if (ambientRecognitionRef.current) {
+        try {
+          ambientRecognitionRef.current.abort();
+        } catch {}
+      }
+      setIsAmbientListening(false);
+      return;
+    }
+
+    try {
+      const ambient = new SpeechRecognition();
+      ambient.continuous = true;
+      ambient.interimResults = true;
+      ambient.lang = 'es-ES';
+
+      ambient.onstart = () => {
+        setIsAmbientListening(true);
+      };
+
+      ambient.onresult = (event: SpeechRecognitionEvent) => {
+        for (let i = event.resultIndex; i < event.results.length; ++i) {
+          const text = (event.results[i][0]?.transcript || '').trim();
+          if (!text) continue;
+
+          const check = checkWakeWord(text);
+          if (check.isWake) {
+            playWakeChime();
+            try {
+              ambient.abort();
+            } catch {}
+            
+            let parsed: ParsedVoiceCommand | null = null;
+            if (check.remainderText && check.remainderText.length >= 3) {
+              parsed = parseVoiceCommand(check.remainderText, defaultStation, availableStations);
+            }
+            optionsRef.current?.onWakeDetected?.(parsed, check.remainderText);
+            return;
+          }
+        }
+      };
+
+      ambient.onerror = (event: SpeechRecognitionErrorEvent) => {
+        if (event.error === 'not-allowed') {
+          setWakeWordEnabled(false);
+          try {
+            localStorage.setItem('misepro_wake_word_enabled', 'false');
+          } catch {}
+        }
+      };
+
+      ambient.onend = () => {
+        setIsAmbientListening(false);
+        // Reinicio automático si el modal sigue cerrado
+        if (wakeWordEnabled && !isModalOpen) {
+          restartAmbientTimeoutRef.current = setTimeout(() => {
+            try {
+              ambient.start();
+            } catch {}
+          }, 350);
+        }
+      };
+
+      ambient.start();
+      ambientRecognitionRef.current = ambient;
+    } catch {
+      setIsAmbientListening(false);
+    }
+
+    const currentAmbient = ambientRecognitionRef.current;
+    const currentRestart = restartAmbientTimeoutRef.current;
+    return () => {
+      if (currentRestart) clearTimeout(currentRestart);
+      if (currentAmbient) {
+        try {
+          currentAmbient.abort();
+        } catch {}
+      }
+    };
+  }, [wakeWordEnabled, isModalOpen, defaultStation, availableStations]);
+
+  const toggleWakeWord = useCallback(() => {
+    setWakeWordEnabled(prev => {
+      const next = !prev;
+      try {
+        localStorage.setItem('misepro_wake_word_enabled', String(next));
+      } catch {}
+      if (next) {
+        playWakeChime();
+      } else {
+        playCancelChime();
+      }
+      return next;
+    });
+  }, []);
 
   const startListening = useCallback(() => {
     setErrorMessage(null);
@@ -603,23 +1002,18 @@ export function useVoiceCommander(defaultStation: StationName = 'Saucier', avail
 
     if (silenceTimeoutRef.current) clearTimeout(silenceTimeoutRef.current);
 
-    if (!recognitionRef.current) {
-      setErrorMessage('El reconocimiento de voz no está disponible en este navegador.');
-      return;
-    }
-
-    try {
-      // Abortar cualquier sesión anterior para vaciar el buffer acumulado de Chrome
-      recognitionRef.current.abort();
-    } catch (_) {}
-
-    setTimeout(() => {
+    if (recognitionRef.current) {
       try {
-        recognitionRef.current?.start();
-      } catch (err) {
-        console.warn('Recognition start retry', err);
-      }
-    }, 60);
+        recognitionRef.current.abort();
+      } catch {}
+      setTimeout(() => {
+        try {
+          recognitionRef.current?.start();
+        } catch (err) {
+          console.warn('Recognition start retry', err);
+        }
+      }, 80);
+    }
   }, []);
 
   const stopListening = useCallback(() => {
@@ -627,18 +1021,13 @@ export function useVoiceCommander(defaultStation: StationName = 'Saucier', avail
     if (recognitionRef.current) {
       try {
         recognitionRef.current.stop();
-      } catch (_) {}
+      } catch {}
     }
     setIsListening(false);
   }, []);
 
   const resetCommand = useCallback(() => {
     if (silenceTimeoutRef.current) clearTimeout(silenceTimeoutRef.current);
-    if (recognitionRef.current) {
-      try {
-        recognitionRef.current.abort();
-      } catch (_) {}
-    }
     setParsedCommand(null);
     setTranscript('');
     setInterimTranscript('');
@@ -670,11 +1059,17 @@ export function useVoiceCommander(defaultStation: StationName = 'Saucier', avail
     interimTranscript,
     parsedCommand,
     errorMessage,
+    wakeWordEnabled,
+    isAmbientListening,
+    toggleWakeWord,
     startListening,
     stopListening,
     resetCommand,
     setParsedCommand,
     forceParseNow,
-    applyCustomText
+    applyCustomText,
+    registerVoiceActions
   };
 }
+
+export type VoiceCommanderController = ReturnType<typeof useVoiceCommander>;

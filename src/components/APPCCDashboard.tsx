@@ -102,7 +102,7 @@ export function APPCCDashboard() {
         osc.start();
         osc.stop(ctx.currentTime + 0.35);
       }
-    } catch (_) {}
+    } catch {}
 
     if ('vibrate' in navigator) {
       navigator.vibrate([60, 40, 80]);

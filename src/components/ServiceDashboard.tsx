@@ -28,10 +28,10 @@ export function ServiceDashboard() {
     silenciarAlarmaTemporizador
   } = useBrigadeStore();
 
-  // Tick for timers (every 1 second)
-  const [, setTick] = useState(0);
+  // Stateful timestamp tick for timers (every 1 second)
+  const [currentTimestamp, setCurrentTimestamp] = useState(() => Date.now());
   useEffect(() => {
-    const interval = setInterval(() => setTick(t => t + 1), 1000);
+    const interval = setInterval(() => setCurrentTimestamp(Date.now()), 1000);
     return () => clearInterval(interval);
   }, []);
 
@@ -56,9 +56,8 @@ export function ServiceDashboard() {
     ? temporizadores
     : temporizadores.filter(t => t.partida === selectedStation);
 
-  const now = Date.now();
   const activos = temporizadores.filter(t => t.estado === 'activo').length;
-  const expirados = temporizadores.filter(t => t.estado !== 'pausado' && t.finTimestamp <= now && !t.alarmaSilenciada).length;
+  const expirados = temporizadores.filter(t => t.estado !== 'pausado' && t.finTimestamp <= currentTimestamp && !t.alarmaSilenciada).length;
 
   return (
     <div className="w-full flex-1 flex flex-col gap-6 pb-20 animate-in fade-in duration-300">
@@ -191,6 +190,7 @@ export function ServiceDashboard() {
             <TimerCard 
               key={timer.id} 
               timer={timer} 
+              currentTimestamp={currentTimestamp}
               isDark={isDark}
               onAjustar={ajustarTiempoTemporizador}
               onPausar={pausarTemporizador}
@@ -296,6 +296,7 @@ export function ServiceDashboard() {
 // Subcomponent: Individual Timer Card (High-Contrast KDS Chef Board)
 interface TimerCardProps {
   timer: Temporizador;
+  currentTimestamp: number;
   isDark: boolean;
   onAjustar: (id: string, deltaSegundos: number) => void;
   onPausar: (id: string) => void;
@@ -307,6 +308,7 @@ interface TimerCardProps {
 
 function TimerCard({
   timer,
+  currentTimestamp,
   isDark,
   onAjustar,
   onPausar,
@@ -322,7 +324,7 @@ function TimerCard({
   if (timer.estado === 'pausado') {
     remaining = timer.segundosRestantesPausado ?? 0;
   } else {
-    remaining = Math.max(0, Math.floor((timer.finTimestamp - Date.now()) / 1000));
+    remaining = Math.max(0, Math.floor((timer.finTimestamp - currentTimestamp) / 1000));
   }
 
   const isFinished = remaining === 0 && timer.estado !== 'pausado';

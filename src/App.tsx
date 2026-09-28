@@ -37,6 +37,7 @@ import { OnboardingWizardModal } from './components/OnboardingWizardModal';
 import { StationManagerModal } from './components/StationManagerModal';
 import { useTheme } from './hooks/useTheme';
 import { getStationConfig } from './types/stations';
+import { useVoiceCommander, type ParsedVoiceCommand } from './hooks/useVoiceCommander';
 
 /**
  * Modo Zen Puro (Solo Alarmas y Temporizadores)
@@ -46,7 +47,13 @@ function ZenModeView() {
   const { temporizadores, toggleModoZen, silenciarAlarmaTemporizador, reiniciarTemporizador, eliminarTemporizador } = useBrigadeStore();
   const activos = temporizadores.filter(t => t.estado !== 'pausado');
   
-  const hasFinishedTimers = activos.some(t => Math.max(0, Math.floor((t.finTimestamp - Date.now()) / 1000)) === 0 && !t.alarmaSilenciada);
+  const [currentTimestamp, setCurrentTimestamp] = useState(() => Date.now());
+  useEffect(() => {
+    const interval = setInterval(() => setCurrentTimestamp(Date.now()), 1000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const hasFinishedTimers = activos.some(t => Math.max(0, Math.floor((t.finTimestamp - currentTimestamp) / 1000)) === 0 && !t.alarmaSilenciada);
 
   useEffect(() => {
     let audioCtx: AudioContext | null = null;
@@ -145,7 +152,7 @@ function ZenModeView() {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-6xl mx-auto w-full">
             {activos.map(t => {
-              const rem = Math.max(0, Math.floor((t.finTimestamp - Date.now()) / 1000));
+              const rem = Math.max(0, Math.floor((t.finTimestamp - currentTimestamp) / 1000));
               const m = Math.floor(rem / 60);
               const s = rem % 60;
               const isFin = rem === 0;
@@ -239,8 +246,35 @@ export default function App() {
   
   const [drawerOpen, setDrawerOpen] = useState(false);
   
-  // Voice Assistant Modal
+  // Voice Assistant Modal State
   const [showVoiceModal, setShowVoiceModal] = useState(false);
+  const [voiceInitialCommand, setVoiceInitialCommand] = useState<ParsedVoiceCommand | null>(null);
+  const [voiceInitialText, setVoiceInitialText] = useState('');
+  const [isWakeWordTriggered, setIsWakeWordTriggered] = useState(false);
+
+  // Hook de Comandante de Voz para ambient listening (Wake Word "Chef" / "Oye Chef")
+  const voiceCommander = useVoiceCommander((partidas[0] as any) || 'Saucier', partidas, {
+    isModalOpen: showVoiceModal,
+    onWakeDetected: (parsed, rawRemainder) => {
+      setVoiceInitialCommand(parsed);
+      setVoiceInitialText(rawRemainder);
+      setIsWakeWordTriggered(true);
+      setShowVoiceModal(true);
+    }
+  });
+
+  const {
+    wakeWordEnabled,
+    isAmbientListening,
+    toggleWakeWord
+  } = voiceCommander;
+
+  const handleOpenVoiceManual = () => {
+    setVoiceInitialCommand(null);
+    setVoiceInitialText('');
+    setIsWakeWordTriggered(false);
+    setShowVoiceModal(true);
+  };
 
   // Station Manager Modal
   const [showStationManager, setShowStationManager] = useState(false);
@@ -281,10 +315,10 @@ export default function App() {
     }
   };
 
-  // Tick for real-time header KPIs (timers expiration)
-  const [, setTick] = useState(0);
+  // Tick for real-time header KPIs and countdowns
+  const [currentTimestamp, setCurrentTimestamp] = useState(() => Date.now());
   useEffect(() => {
-    const interval = setInterval(() => setTick(t => t + 1), 1000);
+    const interval = setInterval(() => setCurrentTimestamp(Date.now()), 1000);
     return () => clearInterval(interval);
   }, []);
 
@@ -294,9 +328,8 @@ export default function App() {
 
   const tareasCriticas = kanbanTareas.filter(t => t.prioridad === 'Critica' && t.estado !== 'Completado').length;
   
-  const now = Date.now();
   const numTimersTotal = temporizadores.filter(t => t.estado !== 'pausado').length;
-  const numTimersExpirados = temporizadores.filter(t => t.estado !== 'pausado' && t.finTimestamp <= now).length;
+  const numTimersExpirados = temporizadores.filter(t => t.estado !== 'pausado' && t.finTimestamp <= currentTimestamp).length;
   const num86 = agotados86.length;
 
   if (modoZen) {
@@ -365,6 +398,25 @@ export default function App() {
             </div>
 
             <ServiceCountdown />
+
+            {/* Quick Hands-Free Wake Word Button ("Oye Chef") */}
+            <button
+              onClick={toggleWakeWord}
+              className={`min-h-[40px] px-2.5 sm:px-3 rounded-xl border flex items-center gap-1.5 text-xs font-bold transition-all cursor-pointer shadow-xs active:scale-95 ${
+                wakeWordEnabled
+                  ? 'border-amber-500 bg-amber-500/20 text-amber-400 ring-2 ring-amber-500/30 font-black'
+                  : 'border-stone-300/80 dark:border-slate-800 bg-stone-100/70 dark:bg-[#131926] text-stone-700 dark:text-slate-300 hover:border-amber-500/50 hover:text-amber-400'
+              }`}
+              title={wakeWordEnabled ? "Manos Libres Activo: di 'Oye Chef' para dictar" : "Activar Manos Libres por voz ('Oye Chef')"}
+            >
+              <Mic className={`w-4 h-4 ${wakeWordEnabled ? 'animate-pulse text-amber-400' : ''}`} />
+              <span className="hidden sm:inline font-mono">
+                {wakeWordEnabled ? 'Chef ON' : 'Manos Libres'}
+              </span>
+              {wakeWordEnabled && isAmbientListening && (
+                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping inline-block" />
+              )}
+            </button>
 
             {/* Quick Zen Mode Button */}
             <button
@@ -1018,19 +1070,23 @@ export default function App() {
 
         {/* Action 3: VOZ CENTRAL DESTACADA (GastroCost PRO Style) */}
         <button
-          onClick={() => setShowVoiceModal(true)}
+          onClick={handleOpenVoiceManual}
           className="relative -top-3 flex flex-col items-center justify-center cursor-pointer transition-all active:scale-90 group"
-          title="Hablar al Asistente de Voz (Manos Libres)"
+          title={wakeWordEnabled ? "Manos Libres Activo: di 'Oye Chef' o toca para hablar" : "Toca para hablar al Asistente de Voz"}
         >
-          <div className="w-13 h-13 rounded-full bg-gradient-to-tr from-amber-500 via-amber-400 to-[#e8cd87] text-stone-950 flex items-center justify-center shadow-[0_4px_22px_rgba(212,175,55,0.45)] border-2 border-[#fce082] group-hover:scale-105 transition-transform">
+          <div className={`w-13 h-13 rounded-full flex items-center justify-center transition-all ${
+            wakeWordEnabled
+              ? 'bg-gradient-to-tr from-amber-500 via-amber-400 to-[#fce082] text-stone-950 shadow-[0_4px_25px_rgba(212,175,55,0.6)] border-2 border-[#fff0a8] ring-4 ring-amber-500/20'
+              : 'bg-gradient-to-tr from-amber-500 via-amber-400 to-[#e8cd87] text-stone-950 shadow-[0_4px_22px_rgba(212,175,55,0.45)] border-2 border-[#fce082]'
+          } group-hover:scale-105`}>
             <Mic className="w-6 h-6 stroke-[2.4] text-stone-950" />
             <span className="absolute -top-0.5 -right-0.5 flex h-3.5 w-3.5">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-3.5 w-3.5 bg-emerald-500"></span>
+              <span className={`animate-ping absolute inline-flex h-full w-full rounded-full ${wakeWordEnabled ? 'bg-amber-400' : 'bg-emerald-400'} opacity-75`}></span>
+              <span className={`relative inline-flex rounded-full h-3.5 w-3.5 ${wakeWordEnabled ? 'bg-amber-400 ring-2 ring-stone-950' : 'bg-emerald-500'}`}></span>
             </span>
           </div>
           <span className="text-[0.62rem] font-bold uppercase tracking-wider text-amber-500 dark:text-amber-400 mt-0.5">
-            Voz
+            {wakeWordEnabled ? 'Oye Chef' : 'Voz'}
           </span>
         </button>
 
@@ -1067,8 +1123,17 @@ export default function App() {
       {/* Modal Interactivo de Asistente de Voz */}
       <VoiceAssistantModal
         isOpen={showVoiceModal}
-        onClose={() => setShowVoiceModal(false)}
+        onClose={() => {
+          setShowVoiceModal(false);
+          setVoiceInitialCommand(null);
+          setVoiceInitialText('');
+          setIsWakeWordTriggered(false);
+        }}
         currentStation={(partidas[0] as any) || 'Saucier'}
+        initialCommand={voiceInitialCommand}
+        initialText={voiceInitialText}
+        isWakeWordTriggered={isWakeWordTriggered}
+        voiceCommander={voiceCommander}
       />
 
       {/* Asistente Inicial de Bienvenida (Onboarding) */}

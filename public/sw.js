@@ -1,12 +1,12 @@
-// MisePro Service Worker - Version 2.7.0-gastrocost-luxury-mobile-ux
-self.addEventListener('install', (event) => {
+// MisePro Service Worker - Version 2.9.0-handsfree-voice-unified
+self.addEventListener('install', () => {
   self.skipWaiting();
 });
 
 self.addEventListener('activate', (event) => {
-  event.waitUntil(clients.claim());
+  event.waitUntil(self.clients.claim());
 });
 
-self.addEventListener('fetch', (event) => {
-  // Dummy fetch event listener
+self.addEventListener('fetch', () => {
+  // Service Worker offline pass-through fetch handler
 });
