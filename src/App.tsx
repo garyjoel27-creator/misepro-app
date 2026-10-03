@@ -1177,12 +1177,14 @@ export default function App() {
           title={wakeWordEnabled ? "Manos Libres Activo: di 'Oye Chef' o toca para hablar" : "Toca para hablar al Asistente de Voz"}
         >
           <div className={`w-13 h-13 rounded-full flex items-center justify-center transition-all ${
-            wakeWordEnabled
+            voiceCommander.isListening
+              ? 'bg-gradient-to-tr from-amber-500 via-amber-400 to-[#fce082] text-stone-950 shadow-[0_4px_25px_rgba(212,175,55,0.7)] border-2 border-[#fff0a8] ring-4 ring-amber-500/30 animate-pulse'
+              : wakeWordEnabled
               ? 'bg-gradient-to-tr from-amber-500 via-amber-400 to-[#fce082] text-stone-950 shadow-[0_4px_25px_rgba(212,175,55,0.6)] border-2 border-[#fff0a8] ring-4 ring-amber-500/20'
               : 'bg-stone-800 text-stone-200 border-2 border-stone-700 shadow-md'
           } group-hover:scale-105`}>
-            <Mic className={`w-6 h-6 stroke-[2.4] ${wakeWordEnabled ? 'text-stone-950' : 'text-amber-400'}`} />
-            {wakeWordEnabled && (
+            <Mic className={`w-6 h-6 stroke-[2.4] ${wakeWordEnabled || voiceCommander.isListening ? 'text-stone-950' : 'text-amber-400'}`} />
+            {(wakeWordEnabled || voiceCommander.isListening) && (
               <span className="absolute -top-0.5 -right-0.5 flex h-3.5 w-3.5">
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
                 <span className="relative inline-flex rounded-full h-3.5 w-3.5 bg-emerald-500 ring-2 ring-stone-950"></span>
@@ -1190,7 +1192,7 @@ export default function App() {
             )}
           </div>
           <span className="text-[0.62rem] font-bold uppercase tracking-wider text-amber-500 dark:text-amber-400 mt-0.5">
-            {wakeWordEnabled ? 'Oye Chef' : 'Voz'}
+            {voiceCommander.isListening ? 'Escuchando' : (wakeWordEnabled ? 'Oye Chef' : 'Voz')}
           </span>
         </button>
 

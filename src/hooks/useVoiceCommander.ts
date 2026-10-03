@@ -633,6 +633,15 @@ export interface UseVoiceCommanderOptions {
   onVoiceSumExisting?: () => void;
 }
 
+/**
+ * Permiso de micrófono: Web Speech API gestiona su propio permiso nativo en el navegador.
+ * No se debe anteponer getUserMedia({audio:true}) porque rompe el gesto de usuario (User Activation)
+ * en iOS Safari y Android Chrome e interrumpe el subsistema de audio.
+ */
+export async function requestMicrophonePermission(): Promise<boolean> {
+  return true;
+}
+
 export function useVoiceCommander(
   defaultStation: StationName = 'Saucier', 
   availableStations: string[] = [],
@@ -657,10 +666,9 @@ export function useVoiceCommander(
     try {
       const saved = localStorage.getItem('misepro_wake_word_enabled');
       if (saved !== null) return saved === 'true';
-      // Por defecto activo en cocina profesional para que "Oye Chef" responda desde el primer acceso
-      return true;
+      return false; // Por defecto apagado: 100% foco en pulsación manual inmediata
     } catch {
-      return true;
+      return false;
     }
   });
 
@@ -682,48 +690,27 @@ export function useVoiceCommander(
 
   const dynamicActionsRef = useRef<VoiceActionHandlers>({});
   const userPausedRef = useRef(false);
+  const hasUserInteractedRef = useRef(false);
 
-  // Instancia única y flags de ciclo de vida del SpeechRecognition
+  // Instancia activa de SpeechRecognition y timers
   const recognitionRef = useRef<any>(null);
-  const isRunningRef = useRef(false);
-  const isStartingRef = useRef(false);
   const restartTimerRef = useRef<any>(null);
-  const sessionStartIndexRef = useRef(0);
 
   const registerVoiceActions = useCallback((handlers: VoiceActionHandlers) => {
     dynamicActionsRef.current = handlers;
   }, []);
 
-  // Función núcleo para asegurar que el reconocimiento esté activo sin colisiones
-  const ensureRecognitionRunning = useCallback((forceFreshSession = false) => {
+  // Función para arrancar reconocimiento en modo ambiental (Wake Word: "Oye Chef")
+  const startAmbientListening = useCallback(() => {
     if (typeof window === 'undefined') return;
-    const SpeechRecognition = 
+    if (!wakeWordEnabledRef.current || userPausedRef.current || isModalOpenRef.current) return;
+
+    const SpeechRec = 
       (window as unknown as { SpeechRecognition?: any }).SpeechRecognition || 
       (window as unknown as { webkitSpeechRecognition?: any }).webkitSpeechRecognition;
 
-    if (!SpeechRecognition) return;
+    if (!SpeechRec) return;
 
-    // Si el usuario pausó explícitamente el micrófono, respetar la pausa
-    if (userPausedRef.current) return;
-
-    // Si ya está activo y no se fuerza sesión limpia, actualizar estados UI
-    if (!forceFreshSession && (isRunningRef.current || isStartingRef.current)) {
-      if (isModalOpenRef.current) {
-        setIsListening(true);
-        setIsAmbientListening(false);
-      } else if (wakeWordEnabledRef.current && !userPausedRef.current) {
-        setIsListening(false);
-        setIsAmbientListening(true);
-      }
-      return;
-    }
-
-    if (restartTimerRef.current) {
-      clearTimeout(restartTimerRef.current);
-      restartTimerRef.current = null;
-    }
-
-    // Limpieza de instancia inactiva o previa
     if (recognitionRef.current) {
       try {
         recognitionRef.current.onstart = null;
@@ -734,245 +721,310 @@ export function useVoiceCommander(
       } catch {}
       recognitionRef.current = null;
     }
-    isRunningRef.current = false;
 
     try {
-      const recognition = new SpeechRecognition();
+      const recognition = new SpeechRec();
       recognition.continuous = true;
       recognition.interimResults = true;
       recognition.lang = 'es-ES';
       recognition.maxAlternatives = 1;
 
-      isStartingRef.current = true;
-
       recognition.onstart = () => {
-        isStartingRef.current = false;
-        isRunningRef.current = true;
-        setErrorMessage(null);
-
-        if (isModalOpenRef.current) {
-          setIsListening(true);
-          setIsAmbientListening(false);
-        } else if (wakeWordEnabledRef.current && !userPausedRef.current) {
-          setIsListening(false);
-          setIsAmbientListening(true);
-        }
+        setIsAmbientListening(true);
+        setIsListening(false);
       };
 
       recognition.onresult = (event: SpeechRecognitionEvent) => {
-        const isModal = isModalOpenRef.current;
+        for (let i = event.resultIndex; i < event.results.length; ++i) {
+          const text = (event.results[i][0]?.transcript || '').trim();
+          if (!text) continue;
 
-        if (!isModal) {
-          // MODO AMBIENTAL (Wake word: "Oye Chef", "Chef", etc.)
-          for (let i = event.resultIndex; i < event.results.length; ++i) {
-            const text = (event.results[i][0]?.transcript || '').trim();
-            if (!text) continue;
+          const check = checkWakeWord(text);
+          if (check.isWake) {
+            playWakeChime();
 
-            const check = checkWakeWord(text);
-            if (check.isWake) {
-              playWakeChime();
-
-              // Marcar el índice exacto donde se detectó el wake word como inicio
-              sessionStartIndexRef.current = i;
-
-              let parsed: ParsedVoiceCommand | null = null;
-              if (check.remainderText && check.remainderText.length >= 3) {
-                parsed = parseVoiceCommand(
-                  check.remainderText, 
-                  defaultStationRef.current, 
-                  availableStationsRef.current
-                );
-              }
-
-              // Preparar buffer de transcripción limpio
-              setTranscript(check.remainderText ? deduplicateText(check.remainderText) : '');
-              setInterimTranscript('');
-              setParsedCommand(parsed);
-
-              // Transicionar inmediatamente a estado de escucha activa
-              setIsListening(true);
-              setIsAmbientListening(false);
-
-              // Notificar al componente raíz para abrir el modal
-              optionsRef.current?.onWakeDetected?.(parsed, check.remainderText);
-              return;
-            }
-          }
-        } else {
-          // MODO MODAL (Dictado de tareas / Comandos de control)
-          let interim = '';
-          let final = '';
-
-          const startIdx = Math.min(sessionStartIndexRef.current, event.results.length > 0 ? event.results.length - 1 : 0);
-
-          for (let i = startIdx; i < event.results.length; ++i) {
-            const res = event.results[i];
-            let text = (res[0]?.transcript || '').trim();
-            if (!text) continue;
-
-            // Si es el resultado de la invocación inicial o contiene wake word, extraer el comando restante
-            if (i === sessionStartIndexRef.current) {
-              const check = checkWakeWord(text);
-              if (check.isWake) {
-                text = check.remainderText;
-              } else {
-                text = stripPrefixes(text);
-              }
-            } else {
-              text = stripPrefixes(text);
+            let parsed: ParsedVoiceCommand | null = null;
+            if (check.remainderText && check.remainderText.length >= 2) {
+              parsed = parseVoiceCommand(
+                check.remainderText, 
+                defaultStationRef.current, 
+                availableStationsRef.current
+              );
             }
 
-            if (!text) continue;
-
-            if (res.isFinal) {
-              final += (final ? ' ' : '') + text;
-            } else {
-              interim += (interim ? ' ' : '') + text;
-            }
-          }
-
-          const cleanFinal = deduplicateText(final);
-          const cleanInterim = deduplicateText(interim);
-
-          if (cleanInterim) {
-            setInterimTranscript(cleanInterim);
-          } else {
+            setTranscript(check.remainderText ? deduplicateText(check.remainderText) : '');
             setInterimTranscript('');
-          }
-
-          if (cleanFinal) {
-            setTranscript(cleanFinal);
-            setInterimTranscript('');
-
-            // Evaluar comandos de control por voz en vivo dentro del modal
-            const lowerFinal = cleanFinal.toLowerCase().trim();
-            if (/\b(confirmar|guardar|listo|inyectar|oído|oido|vale)\b/i.test(lowerFinal)) {
-              if (dynamicActionsRef.current.onConfirm) {
-                dynamicActionsRef.current.onConfirm();
-              } else {
-                optionsRef.current?.onVoiceConfirm?.();
-              }
-              return;
-            }
-            if (/\b(sumar|añadir cantidad|sumar cantidad|suma)\b/i.test(lowerFinal)) {
-              if (dynamicActionsRef.current.onSumExisting) {
-                dynamicActionsRef.current.onSumExisting();
-                return;
-              }
-            }
-            if (/\b(cancelar|cerrar|atrás|atras|salir)\b/i.test(lowerFinal)) {
-              if (dynamicActionsRef.current.onCancel) {
-                dynamicActionsRef.current.onCancel();
-              } else {
-                optionsRef.current?.onVoiceCancel?.();
-              }
-              return;
-            }
-            if (/\b(acción|accion|operativa)\b/i.test(lowerFinal) && !cleanFinal.includes(' ')) {
-              if (dynamicActionsRef.current.onToggleTipo) {
-                dynamicActionsRef.current.onToggleTipo();
-              } else {
-                optionsRef.current?.onVoiceToggleTipo?.();
-              }
-              return;
-            }
-
-            const parsed = parseVoiceCommand(cleanFinal, defaultStationRef.current, availableStationsRef.current);
             setParsedCommand(parsed);
-          } else if (cleanInterim && cleanInterim.length >= 3) {
-            const parsed = parseVoiceCommand(cleanInterim, defaultStationRef.current, availableStationsRef.current);
-            setParsedCommand(parsed);
+            setIsListening(true);
+            setIsAmbientListening(false);
+
+            optionsRef.current?.onWakeDetected?.(parsed, check.remainderText);
+            return;
           }
         }
       };
 
       recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
-        isStartingRef.current = false;
-        if (event.error === 'not-allowed') {
-          setErrorMessage('Permiso de micrófono denegado. Actívalo en los ajustes de tu navegador.');
-          setWakeWordEnabled(false);
-          try {
-            localStorage.setItem('misepro_wake_word_enabled', 'false');
-          } catch {}
-          setIsListening(false);
+        if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
+          // Si el navegador bloquea escucha en segundo plano sin interacción directa, apagar ambiental sin molestar
           setIsAmbientListening(false);
-        } else if (event.error === 'no-speech') {
-          // Silencio normal en cocina, no es un fallo
-        } else if (event.error === 'aborted') {
-          // Detención intencional o reinicio, ignorar
-        } else {
-          console.warn('Aviso de micrófono:', event.error);
         }
       };
 
       recognition.onend = () => {
-        isStartingRef.current = false;
-        isRunningRef.current = false;
-
-        // Reinicio automático limpio si el sistema debe seguir escuchando
-        const shouldBeRunning = !userPausedRef.current && (isModalOpenRef.current || wakeWordEnabledRef.current);
-        if (shouldBeRunning) {
+        if (wakeWordEnabledRef.current && !userPausedRef.current && !isModalOpenRef.current) {
           if (restartTimerRef.current) clearTimeout(restartTimerRef.current);
           restartTimerRef.current = setTimeout(() => {
-            sessionStartIndexRef.current = 0;
-            ensureRecognitionRunning();
-          }, 150);
+            if (wakeWordEnabledRef.current && !userPausedRef.current && !isModalOpenRef.current) {
+              startAmbientListening();
+            }
+          }, 350);
         } else {
-          setIsListening(false);
           setIsAmbientListening(false);
         }
       };
 
       recognition.start();
       recognitionRef.current = recognition;
-    } catch (err) {
-      isStartingRef.current = false;
-      isRunningRef.current = false;
-      console.warn('SpeechRecognition retry scheduled:', err);
-      // NUNCA deshabilitar isSupported por una colisión transitoria
-      const shouldBeRunning = !userPausedRef.current && (isModalOpenRef.current || wakeWordEnabledRef.current);
-      if (shouldBeRunning) {
-        if (restartTimerRef.current) clearTimeout(restartTimerRef.current);
-        restartTimerRef.current = setTimeout(() => {
-          ensureRecognitionRunning();
-        }, 250);
-      }
+    } catch {
+      setIsAmbientListening(false);
     }
   }, []);
 
-  // Sincronización continua de estado con apertura/cierre de modal y switch de wake word
+  // Función núcleo para iniciar la sesión de captura manual activa
+  const startListeningInstance = useCallback(() => {
+    if (typeof window === 'undefined') return;
+    const SpeechRec = 
+      (window as unknown as { SpeechRecognition?: any }).SpeechRecognition || 
+      (window as unknown as { webkitSpeechRecognition?: any }).webkitSpeechRecognition;
+
+    if (!SpeechRec) {
+      setErrorMessage('Reconocimiento no disponible en este navegador. Usa Chrome o Safari.');
+      return;
+    }
+
+    if (restartTimerRef.current) {
+      clearTimeout(restartTimerRef.current);
+      restartTimerRef.current = null;
+    }
+
+    // Detener de forma limpia cualquier instancia anterior
+    if (recognitionRef.current) {
+      try {
+        recognitionRef.current.onstart = null;
+        recognitionRef.current.onend = null;
+        recognitionRef.current.onerror = null;
+        recognitionRef.current.onresult = null;
+        recognitionRef.current.abort();
+      } catch {}
+      recognitionRef.current = null;
+    }
+
+    try {
+      const recognition = new SpeechRec();
+      recognition.continuous = true;
+      recognition.interimResults = true;
+      recognition.lang = 'es-ES';
+      recognition.maxAlternatives = 1;
+
+      recognition.onstart = () => {
+        setErrorMessage(null);
+        setIsListening(true);
+        setIsAmbientListening(false);
+      };
+
+      recognition.onresult = (event: SpeechRecognitionEvent) => {
+        let interim = '';
+        let final = '';
+
+        for (let i = 0; i < event.results.length; ++i) {
+          const res = event.results[i];
+          let phrase = (res[0]?.transcript || '').trim();
+          if (!phrase) continue;
+
+          // Limpiar wake word inicial si el usuario comenzó diciendo "Oye Chef"
+          const check = checkWakeWord(phrase);
+          if (check.isWake && check.remainderText) {
+            phrase = check.remainderText;
+          }
+
+          if (!phrase) continue;
+
+          if (res.isFinal) {
+            final += (final ? ' ' : '') + phrase;
+          } else {
+            interim += (interim ? ' ' : '') + phrase;
+          }
+        }
+
+        const cleanFinal = deduplicateText(final);
+        const cleanInterim = deduplicateText(interim);
+
+        if (cleanInterim) {
+          setInterimTranscript(cleanInterim);
+        } else {
+          setInterimTranscript('');
+        }
+
+        if (cleanFinal) {
+          setTranscript(cleanFinal);
+          setInterimTranscript('');
+
+          // Atajos de control por voz (cuando la frase completa es el comando)
+          const lowerFinal = cleanFinal.toLowerCase().trim();
+          if (/^(confirmar|guardar|listo|inyectar|oído|oido|vale|dale)$/i.test(lowerFinal)) {
+            if (dynamicActionsRef.current.onConfirm) {
+              dynamicActionsRef.current.onConfirm();
+            } else {
+              optionsRef.current?.onVoiceConfirm?.();
+            }
+            return;
+          }
+          if (/^(sumar|suma|añadir cantidad|sumar cantidad)$/i.test(lowerFinal)) {
+            if (dynamicActionsRef.current.onSumExisting) {
+              dynamicActionsRef.current.onSumExisting();
+              return;
+            }
+          }
+          if (/^(cancelar|cerrar|atrás|atras|salir)$/i.test(lowerFinal)) {
+            if (dynamicActionsRef.current.onCancel) {
+              dynamicActionsRef.current.onCancel();
+            } else {
+              optionsRef.current?.onVoiceCancel?.();
+            }
+            return;
+          }
+          if (/^(acción|accion|operativa|cambiar a acción|cambiar a accion)$/i.test(lowerFinal)) {
+            if (dynamicActionsRef.current.onToggleTipo) {
+              dynamicActionsRef.current.onToggleTipo();
+            } else {
+              optionsRef.current?.onVoiceToggleTipo?.();
+            }
+            return;
+          }
+
+          // Clasificación semántica íntegra del comando
+          const parsed = parseVoiceCommand(cleanFinal, defaultStationRef.current, availableStationsRef.current);
+          setParsedCommand(parsed);
+        } else if (cleanInterim && cleanInterim.length >= 2) {
+          const parsed = parseVoiceCommand(cleanInterim, defaultStationRef.current, availableStationsRef.current);
+          setParsedCommand(parsed);
+        }
+      };
+
+      recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
+        if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
+          setErrorMessage('Permiso de micrófono no concedido. Permite el acceso al micrófono en los ajustes de tu navegador.');
+          setIsListening(false);
+          setIsAmbientListening(false);
+        } else if (event.error === 'no-speech') {
+          // Silencio acústico normal en cocina, no es un error
+        } else if (event.error === 'aborted') {
+          // Detención intencional
+        } else {
+          console.warn('SpeechRecognition warning:', event.error);
+        }
+      };
+
+      recognition.onend = () => {
+        // En navegadores móviles (iOS Safari / Android Chrome), la API detiene la escucha tras unos segundos de silencio.
+        // Si el modal continúa abierto y el usuario no pulsó pausa, reiniciamos suavemente.
+        if (isModalOpenRef.current && !userPausedRef.current) {
+          if (restartTimerRef.current) clearTimeout(restartTimerRef.current);
+          restartTimerRef.current = setTimeout(() => {
+            if (isModalOpenRef.current && !userPausedRef.current) {
+              try {
+                startListeningInstance();
+              } catch {
+                setIsListening(false);
+              }
+            }
+          }, 150);
+        } else if (wakeWordEnabledRef.current && !userPausedRef.current && !isModalOpenRef.current) {
+          if (restartTimerRef.current) clearTimeout(restartTimerRef.current);
+          restartTimerRef.current = setTimeout(() => {
+            if (wakeWordEnabledRef.current && !userPausedRef.current && !isModalOpenRef.current) {
+              startAmbientListening();
+            }
+          }, 300);
+        } else {
+          setIsListening(false);
+          setIsAmbientListening(false);
+        }
+      };
+
+      // Invocación síncrona dentro del User Gesture
+      recognition.start();
+      recognitionRef.current = recognition;
+    } catch (err: any) {
+      console.warn('Error al iniciar SpeechRecognition:', err);
+      if (err?.name === 'InvalidStateError') {
+        // Si la instancia previa aún no terminó de cerrarse, reintentar a los 100ms
+        setTimeout(() => {
+          if (isModalOpenRef.current && !userPausedRef.current) {
+            try {
+              startListeningInstance();
+            } catch {}
+          }
+        }, 100);
+      } else {
+        setErrorMessage('No se pudo activar el micrófono. Toca de nuevo para reintentar.');
+        setIsListening(false);
+      }
+    }
+  }, [startAmbientListening]);
+
+  // Listener para registrar primera interacción del usuario para wake word
+  useEffect(() => {
+    const onInteraction = () => {
+      if (!hasUserInteractedRef.current) {
+        hasUserInteractedRef.current = true;
+        if (wakeWordEnabledRef.current && !userPausedRef.current && !isModalOpenRef.current && !recognitionRef.current) {
+          startAmbientListening();
+        }
+      }
+    };
+
+    window.addEventListener('click', onInteraction, { passive: true });
+    window.addEventListener('touchstart', onInteraction, { passive: true });
+    window.addEventListener('keydown', onInteraction, { passive: true });
+
+    return () => {
+      window.removeEventListener('click', onInteraction);
+      window.removeEventListener('touchstart', onInteraction);
+      window.removeEventListener('keydown', onInteraction);
+    };
+  }, [startAmbientListening]);
+
+  // Sincronización de apertura/cierre de modal
   useEffect(() => {
     isModalOpenRef.current = isModalOpen;
-    userPausedRef.current = false;
 
     if (!isModalOpen) {
-      // Modal cerrado: resetear buffers temporales del modal
       setTranscript('');
       setInterimTranscript('');
       setParsedCommand(null);
 
-      if (wakeWordEnabled) {
-        setIsListening(false);
-        setIsAmbientListening(isRunningRef.current);
-        sessionStartIndexRef.current = 0;
-        ensureRecognitionRunning();
+      if (wakeWordEnabled && !userPausedRef.current && hasUserInteractedRef.current) {
+        startAmbientListening();
       } else {
-        if (restartTimerRef.current) clearTimeout(restartTimerRef.current);
-        if (recognitionRef.current) {
-          try {
-            recognitionRef.current.stop();
-          } catch {}
+        if (!wakeWordEnabled) {
+          if (restartTimerRef.current) clearTimeout(restartTimerRef.current);
+          if (recognitionRef.current) {
+            try {
+              recognitionRef.current.abort();
+            } catch {}
+            recognitionRef.current = null;
+          }
+          setIsListening(false);
+          setIsAmbientListening(false);
         }
-        setIsListening(false);
-        setIsAmbientListening(false);
       }
     } else {
-      // Modal abierto: mantener micrófono escuchando
-      setIsListening(true);
-      setIsAmbientListening(false);
-      ensureRecognitionRunning();
+      userPausedRef.current = false;
+      hasUserInteractedRef.current = true;
     }
-  }, [isModalOpen, wakeWordEnabled, ensureRecognitionRunning]);
+  }, [isModalOpen, wakeWordEnabled, startAmbientListening]);
 
   // Limpieza al desmontar
   useEffect(() => {
@@ -986,67 +1038,80 @@ export function useVoiceCommander(
           recognitionRef.current.onresult = null;
           recognitionRef.current.abort();
         } catch {}
+        recognitionRef.current = null;
       }
-      isRunningRef.current = false;
-      isStartingRef.current = false;
     };
   }, []);
 
   const toggleWakeWord = useCallback(() => {
+    hasUserInteractedRef.current = true;
     setWakeWordEnabled(prev => {
       const next = !prev;
       wakeWordEnabledRef.current = next;
       try {
         localStorage.setItem('misepro_wake_word_enabled', String(next));
       } catch {}
+
       if (next) {
         playWakeChime();
         userPausedRef.current = false;
-        ensureRecognitionRunning(true);
+        if (!isModalOpenRef.current) {
+          startAmbientListening();
+        }
       } else {
         playCancelChime();
-        if (!isModalOpenRef.current) {
-          if (restartTimerRef.current) clearTimeout(restartTimerRef.current);
-          if (recognitionRef.current) {
-            try {
-              recognitionRef.current.stop();
-            } catch {}
-          }
-          setIsAmbientListening(false);
-          setIsListening(false);
+        userPausedRef.current = true;
+        if (restartTimerRef.current) clearTimeout(restartTimerRef.current);
+        if (recognitionRef.current && !isModalOpenRef.current) {
+          try {
+            recognitionRef.current.abort();
+          } catch {}
+          recognitionRef.current = null;
         }
+        setIsAmbientListening(false);
+        setIsListening(false);
       }
       return next;
     });
-  }, [ensureRecognitionRunning]);
+  }, [startAmbientListening]);
 
+  // startListening: Completamente SÍNCRONO en el gesto del usuario
   const startListening = useCallback(() => {
+    userPausedRef.current = false;
+    hasUserInteractedRef.current = true;
     setErrorMessage(null);
     setTranscript('');
     setInterimTranscript('');
     setParsedCommand(null);
-    userPausedRef.current = false;
-    sessionStartIndexRef.current = 0;
-    playWakeChime();
-    ensureRecognitionRunning(true);
-  }, [ensureRecognitionRunning]);
+
+    // Feedback háptico instantáneo
+    if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
+      try { navigator.vibrate(35); } catch {}
+    }
+
+    startListeningInstance();
+  }, [startListeningInstance]);
 
   const stopListening = useCallback(() => {
     userPausedRef.current = true;
-    if (restartTimerRef.current) clearTimeout(restartTimerRef.current);
+    if (restartTimerRef.current) {
+      clearTimeout(restartTimerRef.current);
+      restartTimerRef.current = null;
+    }
     if (recognitionRef.current) {
       try {
-        recognitionRef.current.stop();
+        recognitionRef.current.abort();
       } catch {}
+      recognitionRef.current = null;
     }
     setIsListening(false);
+    setIsAmbientListening(false);
   }, []);
 
   const resetCommand = useCallback(() => {
     setParsedCommand(null);
     setTranscript('');
     setInterimTranscript('');
-    sessionStartIndexRef.current = 0;
   }, []);
 
   const forceParseNow = useCallback(() => {

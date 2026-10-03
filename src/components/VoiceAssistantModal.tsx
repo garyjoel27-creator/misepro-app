@@ -154,13 +154,17 @@ export function VoiceAssistantModal({
     );
   }, [editableCmd, currentStation, partidas, kanbanTareas, comprasPendientes, agotados86]);
 
-  // Alerta sonora sutil cuando se localiza un item existente
+  // Alerta sutil cuando se localiza un item existente (solo háptica si el micrófono está escuchando activamente para evitar acople acústico)
   useEffect(() => {
     if (locatedMatch && lastAlertedIdRef.current !== locatedMatch.id) {
       lastAlertedIdRef.current = locatedMatch.id;
-      playAlertChime();
+      if (!isListening) {
+        playAlertChime();
+      } else if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
+        try { navigator.vibrate([25, 20, 25]); } catch {}
+      }
     }
-  }, [locatedMatch]);
+  }, [locatedMatch, isListening]);
 
   const handleConfirmCommand = useCallback(() => {
     if (!editableCmd || !editableCmd.nombre.trim()) return;
@@ -575,9 +579,15 @@ export function VoiceAssistantModal({
               {transcript || interimTranscript ? (
                 <div className="w-full flex items-center justify-between gap-2">
                   <p className="text-xs sm:text-sm font-medium text-stone-200 text-left flex-1 line-clamp-2">
-                    <span className="font-bold text-white">"{transcript}"</span>
-                    {interimTranscript && (
-                      <span className="text-amber-400 italic ml-1 font-semibold">...{interimTranscript}</span>
+                    {transcript ? (
+                      <>
+                        <span className="font-bold text-white">"{transcript}"</span>
+                        {interimTranscript && (
+                          <span className="text-amber-400 italic ml-1 font-semibold">...{interimTranscript}</span>
+                        )}
+                      </>
+                    ) : (
+                      <span className="text-amber-400 italic font-semibold">"{interimTranscript}..."</span>
                     )}
                   </p>
                   
