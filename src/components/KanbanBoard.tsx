@@ -273,6 +273,11 @@ export function KanbanBoard({ partida, masterMode = false }: KanbanBoardProps) {
             <InlineQuickAdd partida={partida} />
           )}
 
+          <div className="flex items-center justify-between px-1 text-[10px] text-stone-500 font-semibold">
+            <span>👈 Desliza para retroceder</span>
+            <span>Desliza para avanzar 👉</span>
+          </div>
+
           <div className="rounded-2xl sm:rounded-3xl border-2 border-stone-300 dark:border-slate-700 bg-white dark:bg-[#0f172a] shadow-lg overflow-hidden">
             <AnimatePresence mode="popLayout">
               {filteredTasks.length === 0 ? (
@@ -298,10 +303,35 @@ export function KanbanBoard({ partida, masterMode = false }: KanbanBoardProps) {
                   <motion.div
                     key={tarea.id}
                     layout
+                    drag="x"
+                    dragConstraints={{ left: -80, right: 80 }}
+                    dragSnapToOrigin={true}
+                    onDragEnd={(_e, info) => {
+                      if (info.offset.x > 50) {
+                        // Swipe derecha: avanzar
+                        if (tarea.estado === 'Pendiente') {
+                          moverTarea(tarea.id, 'En Proceso');
+                          if ('vibrate' in navigator) navigator.vibrate(30);
+                        } else if (tarea.estado === 'En Proceso') {
+                          moverTarea(tarea.id, 'Completado');
+                          if ('vibrate' in navigator) navigator.vibrate([30, 20, 40]);
+                        }
+                      } else if (info.offset.x < -50) {
+                        // Swipe izquierda: retroceder
+                        if (tarea.estado === 'Completado') {
+                          moverTarea(tarea.id, 'En Proceso');
+                          if ('vibrate' in navigator) navigator.vibrate(25);
+                        } else if (tarea.estado === 'En Proceso') {
+                          moverTarea(tarea.id, 'Pendiente');
+                          if ('vibrate' in navigator) navigator.vibrate(25);
+                        }
+                      }
+                    }}
                     initial={{ opacity: 0, y: 8 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, x: -20, scale: 0.95 }}
                     transition={{ duration: 0.18 }}
+                    className="touch-pan-y"
                   >
                     <TaskCard tarea={tarea} index={index} isMobile={true} />
                   </motion.div>

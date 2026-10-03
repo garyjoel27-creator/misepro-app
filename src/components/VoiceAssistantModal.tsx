@@ -123,7 +123,9 @@ export function VoiceAssistantModal({
     resetCommand,
     forceParseNow,
     applyCustomText,
-    registerVoiceActions
+    registerVoiceActions,
+    wakeWordEnabled,
+    toggleWakeWord
   } = voiceCommander;
 
   // Estado del comando interactivo en el "cuadradito"
@@ -349,7 +351,6 @@ export function VoiceAssistantModal({
     setHasUserEdited(true);
     if (autoConfirmTimerRef.current) clearInterval(autoConfirmTimerRef.current);
     setAutoConfirmSeconds(null);
-    stopListening();
     setEditableCmd(prev => {
       const baseName = prev?.nombre || '';
       const basePartida = prev?.partida || partidas[0] || currentStation;
@@ -413,33 +414,36 @@ export function VoiceAssistantModal({
       <div className="relative w-full max-w-lg bg-gradient-to-b from-stone-900/98 via-stone-900/95 to-[#0b0f19] border-2 border-amber-500/40 rounded-3xl p-4 sm:p-6 shadow-[0_0_60px_rgba(0,0,0,0.8),0_0_30px_rgba(245,158,11,0.2)] flex flex-col max-h-[92vh] overflow-y-auto">
         
         {/* Barra Superior Ejecutiva */}
-        <div className="flex items-center justify-between pb-3.5 border-b border-white/10">
-          <div className="flex items-center gap-2.5">
-            <div className={`w-9 h-9 rounded-2xl flex items-center justify-center transition-all ${
+        <div className="flex items-center justify-between pb-3.5 border-b border-white/10 gap-2">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className={`w-9 h-9 rounded-2xl flex items-center justify-center shrink-0 transition-all ${
               isListening 
                 ? 'bg-amber-500 text-stone-950 shadow-[0_0_20px_rgba(245,158,11,0.5)]' 
                 : 'bg-stone-800 text-stone-300'
             }`}>
               <currentIntentConfig.icon className="w-5 h-5" />
             </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h2 className="text-base sm:text-lg font-serif font-black tracking-wider text-amber-400">
-                  CUADRADITO DE VOZ PRO
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <h2 className="text-sm sm:text-base font-serif font-black tracking-wider text-amber-400 truncate">
+                  CUADRADITO DE VOZ
                 </h2>
-                {isWakeWordTriggered && (
-                  <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 animate-pulse">
-                    Oye Chef 🎙️
-                  </span>
-                )}
-                {!isWakeWordTriggered && (
-                  <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md bg-amber-500/20 text-amber-300 border border-amber-500/30">
-                    v2.9 Manos Libres
-                  </span>
-                )}
+                <button
+                  type="button"
+                  onClick={toggleWakeWord}
+                  className={`text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full border cursor-pointer transition-all active:scale-95 flex items-center gap-1 ${
+                    wakeWordEnabled
+                      ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40 shadow-xs'
+                      : 'bg-stone-800 text-stone-400 border-stone-700 hover:text-stone-200'
+                  }`}
+                  title={wakeWordEnabled ? "Manos libres activo: responde a 'Oye Chef'. Toca para apagar." : "Activar escucha continua ('Oye Chef')"}
+                >
+                  <span className={`w-1.5 h-1.5 rounded-full ${wakeWordEnabled ? 'bg-emerald-400 animate-ping' : 'bg-stone-500'}`} />
+                  <span>{wakeWordEnabled ? 'Oye Chef: ON' : 'Oye Chef: OFF'}</span>
+                </button>
               </div>
-              <p className="text-[11px] uppercase tracking-widest text-stone-400 font-semibold">
-                Control Manos Libres y Táctil
+              <p className="text-[10px] uppercase tracking-widest text-stone-400 font-semibold truncate mt-0.5">
+                {wakeWordEnabled ? 'Modo manos libres • Di tu orden o usa los controles' : 'Toca el micrófono para dictar'}
               </p>
             </div>
           </div>
@@ -449,7 +453,7 @@ export function VoiceAssistantModal({
               if (autoConfirmTimerRef.current) clearInterval(autoConfirmTimerRef.current);
               onClose();
             }}
-            className="w-9 h-9 rounded-xl bg-stone-800 hover:bg-stone-700 text-stone-300 hover:text-white flex items-center justify-center transition-all cursor-pointer shadow-md active:scale-95"
+            className="w-9 h-9 rounded-xl bg-stone-800 hover:bg-stone-700 text-stone-300 hover:text-white flex items-center justify-center transition-all cursor-pointer shadow-md active:scale-95 shrink-0"
             title="Cerrar asistente"
           >
             <X className="w-4 h-4" />

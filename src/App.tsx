@@ -23,7 +23,8 @@ import {
   AlertOctagon,
   Share2,
   Check,
-  CheckCircle2
+  CheckCircle2,
+  ClipboardCheck
 } from 'lucide-react';
 import { KanbanBoard } from './components/KanbanBoard';
 import { LogisticsDrawer } from './components/LogisticsDrawer';
@@ -33,6 +34,8 @@ import { CreateTaskModal } from './components/CreateTaskModal';
 import { ServiceDashboard } from './components/ServiceDashboard';
 import { APPCCDashboard } from './components/APPCCDashboard';
 import { VoiceAssistantModal } from './components/VoiceAssistantModal';
+import { ShiftHandoverModal } from './components/ShiftHandoverModal';
+import { audioService } from './utils/audioSingleton';
 import { OnboardingWizardModal } from './components/OnboardingWizardModal';
 import { StationManagerModal } from './components/StationManagerModal';
 import { useTheme } from './hooks/useTheme';
@@ -44,10 +47,22 @@ import { useVoiceCommander, type ParsedVoiceCommand } from './hooks/useVoiceComm
  * Eliminado completamente el panel 86 para foco 100% en los fuegos del pase.
  */
 function ZenModeView() {
-  const { temporizadores, toggleModoZen, silenciarAlarmaTemporizador, reiniciarTemporizador, eliminarTemporizador } = useBrigadeStore();
+  const { 
+    temporizadores, 
+    toggleModoZen, 
+    silenciarAlarmaTemporizador, 
+    reiniciarTemporizador, 
+    eliminarTemporizador,
+    crearTemporizador,
+    partidas 
+  } = useBrigadeStore();
   const activos = temporizadores.filter(t => t.estado !== 'pausado');
   
   const [currentTimestamp, setCurrentTimestamp] = useState(() => Date.now());
+  const [showAddTimer, setShowAddTimer] = useState(false);
+  const [newTimerName, setNewTimerName] = useState('');
+  const [newTimerMins, setNewTimerMins] = useState(5);
+
   useEffect(() => {
     const interval = setInterval(() => setCurrentTimestamp(Date.now()), 1000);
     return () => clearInterval(interval);
@@ -56,7 +71,6 @@ function ZenModeView() {
   const hasFinishedTimers = activos.some(t => Math.max(0, Math.floor((t.finTimestamp - currentTimestamp) / 1000)) === 0 && !t.alarmaSilenciada);
 
   useEffect(() => {
-    let audioCtx: AudioContext | null = null;
     let intervalId: ReturnType<typeof setInterval>;
     let soundInterval: ReturnType<typeof setInterval>;
 
@@ -69,32 +83,7 @@ function ZenModeView() {
       }
       
       const playBeep = () => {
-        if (!audioCtx) {
-          const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
-          if (AudioContextClass) {
-            audioCtx = new AudioContextClass();
-          } else {
-            return;
-          }
-        }
-        if (audioCtx.state === 'suspended') {
-          audioCtx.resume();
-        }
-        const oscillator = audioCtx.createOscillator();
-        const gainNode = audioCtx.createGain();
-        
-        oscillator.type = 'square';
-        oscillator.frequency.setValueAtTime(880, audioCtx.currentTime);
-        oscillator.frequency.exponentialRampToValueAtTime(440, audioCtx.currentTime + 0.1);
-        
-        gainNode.gain.setValueAtTime(0.12, audioCtx.currentTime);
-        gainNode.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.5);
-        
-        oscillator.connect(gainNode);
-        gainNode.connect(audioCtx.destination);
-        
-        oscillator.start();
-        oscillator.stop(audioCtx.currentTime + 0.5);
+        audioService.playTimerBeep();
       };
 
       playBeep();
@@ -104,11 +93,16 @@ function ZenModeView() {
     return () => {
       if (intervalId) clearInterval(intervalId);
       if (soundInterval) clearInterval(soundInterval);
-      if (audioCtx && audioCtx.state !== 'closed') {
-        audioCtx.close().catch(() => {});
-      }
     };
   }, [hasFinishedTimers]);
+
+  const handleCreateQuickTimer = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newTimerName.trim()) return;
+    crearTemporizador(newTimerName.trim(), partidas[0] || 'Pase', newTimerMins);
+    setNewTimerName('');
+    setShowAddTimer(false);
+  };
 
   return (
     <div className="fixed inset-0 z-50 bg-[#05070d] text-white flex flex-col p-4 sm:p-8 overflow-hidden select-none">
@@ -128,14 +122,79 @@ function ZenModeView() {
           </div>
         </div>
 
-        <button 
-          onClick={toggleModoZen} 
-          className="w-12 h-12 rounded-2xl bg-stone-900/90 border border-stone-800 hover:bg-stone-800 flex items-center justify-center text-stone-300 hover:text-white transition-all cursor-pointer shadow-lg active:scale-95"
-          title="Salir del Modo Zen"
-        >
-          <X className="w-6 h-6" />
-        </button>
+        <div className="flex items-center gap-2">
+          <button 
+            onClick={() => setShowAddTimer(true)}
+            className="px-3.5 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-stone-950 font-black text-xs uppercase tracking-wider flex items-center gap-1.5 transition-all cursor-pointer shadow-lg shadow-amber-500/20 active:scale-95"
+            title="Crear fuego rápido sin salir de Zen"
+          >
+            <Plus className="w-4 h-4 stroke-[3]" />
+            <span>+ Timer</span>
+          </button>
+
+          <button 
+            onClick={toggleModoZen} 
+            className="w-10 h-10 rounded-xl bg-stone-900 border border-stone-800 hover:bg-stone-800 flex items-center justify-center text-stone-300 hover:text-white transition-all cursor-pointer shadow-lg active:scale-95"
+            title="Salir del Modo Zen"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
       </div>
+
+      {/* Mini Modal para Añadir Timer en Zen */}
+      {showAddTimer && (
+        <div className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
+          <div className="w-full max-w-sm rounded-2xl bg-stone-900 border border-amber-500/40 p-5 shadow-2xl">
+            <div className="flex items-center justify-between pb-3 border-b border-stone-800">
+              <h3 className="font-bold text-sm text-amber-400 uppercase tracking-wider">Nuevo Fuego Rápido</h3>
+              <button onClick={() => setShowAddTimer(false)} className="text-stone-400 hover:text-white cursor-pointer">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <form onSubmit={handleCreateQuickTimer} className="mt-4 flex flex-col gap-3">
+              <input
+                type="text"
+                autoFocus
+                required
+                value={newTimerName}
+                onChange={(e) => setNewTimerName(e.target.value)}
+                placeholder="Nombre del plato..."
+                className="w-full px-3 py-2 rounded-xl bg-stone-950 border border-stone-700 text-white text-sm font-bold focus:outline-none focus:border-amber-500"
+              />
+              <div className="flex gap-1.5 overflow-x-auto pb-1">
+                {[2, 3, 5, 8, 10, 15, 20].map((m) => (
+                  <button
+                    key={m}
+                    type="button"
+                    onClick={() => setNewTimerMins(m)}
+                    className={`px-2.5 py-1 rounded-lg text-xs font-bold font-mono transition-all cursor-pointer ${
+                      newTimerMins === m ? 'bg-amber-500 text-stone-950' : 'bg-stone-800 text-stone-300'
+                    }`}
+                  >
+                    {m}m
+                  </button>
+                ))}
+              </div>
+              <div className="flex gap-2 mt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowAddTimer(false)}
+                  className="flex-1 py-2 rounded-xl border border-stone-700 text-xs font-bold uppercase cursor-pointer"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 py-2 rounded-xl bg-amber-500 text-stone-950 font-black text-xs uppercase cursor-pointer"
+                >
+                  Iniciar ({newTimerMins}m)
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
       
       {/* Pure Timers Grid */}
       <div className="flex-1 overflow-y-auto py-6 flex flex-col justify-center">
@@ -184,31 +243,47 @@ function ZenModeView() {
                   </div>
 
                   {/* Actions Bar */}
-                  <div className="flex items-center justify-end gap-3 mt-4 pt-4 border-t border-white/10">
-                    {isFin && !t.alarmaSilenciada && (
+                  <div className="flex items-center justify-between gap-3 mt-4 pt-4 border-t border-white/10">
+                    {isFin ? (
                       <button
-                        onClick={() => silenciarAlarmaTemporizador(t.id)}
-                        className="px-4 py-2.5 rounded-xl bg-red-500 hover:bg-red-400 text-white font-bold text-xs uppercase tracking-wider flex items-center gap-1.5 cursor-pointer transition-transform active:scale-95 shadow-md"
+                        onClick={() => {
+                          silenciarAlarmaTemporizador(t.id);
+                          eliminarTemporizador(t.id);
+                        }}
+                        className="px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs uppercase tracking-wider flex items-center gap-1.5 cursor-pointer transition-transform active:scale-95 shadow-md ring-2 ring-emerald-400"
                       >
-                        <BellOff className="w-4 h-4" />
-                        Silenciar
+                        <Check className="w-4 h-4 stroke-[3]" />
+                        <span>✅ Oído y Archivar</span>
                       </button>
+                    ) : (
+                      <div className="text-xs text-stone-500 font-mono">En fuego</div>
                     )}
-                    <button
-                      onClick={() => reiniciarTemporizador(t.id)}
-                      className="px-4 py-2.5 rounded-xl bg-stone-800 hover:bg-stone-700 text-stone-200 font-bold text-xs uppercase tracking-wider flex items-center gap-1.5 cursor-pointer transition-colors"
-                      title="Reiniciar temporizador"
-                    >
-                      <RotateCcw className="w-4 h-4" />
-                      Reiniciar
-                    </button>
-                    <button
-                      onClick={() => eliminarTemporizador(t.id)}
-                      className="px-4 py-2.5 rounded-xl bg-stone-800 hover:bg-red-900/60 text-stone-400 hover:text-red-300 font-bold text-xs uppercase tracking-wider flex items-center gap-1.5 cursor-pointer transition-colors"
-                      title="Eliminar temporizador"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
+
+                    <div className="flex items-center gap-2">
+                      {isFin && !t.alarmaSilenciada && (
+                        <button
+                          onClick={() => silenciarAlarmaTemporizador(t.id)}
+                          className="px-3 py-2 rounded-xl bg-red-500/20 text-red-300 border border-red-500/40 hover:bg-red-500/30 text-xs font-bold uppercase tracking-wider flex items-center gap-1 cursor-pointer"
+                        >
+                          <BellOff className="w-4 h-4" />
+                          <span>Silenciar</span>
+                        </button>
+                      )}
+                      <button
+                        onClick={() => reiniciarTemporizador(t.id)}
+                        className="px-3 py-2 rounded-xl bg-stone-800 hover:bg-stone-700 text-stone-200 font-bold text-xs uppercase tracking-wider flex items-center gap-1.5 cursor-pointer transition-colors"
+                        title="Reiniciar temporizador"
+                      >
+                        <RotateCcw className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => eliminarTemporizador(t.id)}
+                        className="px-3 py-2 rounded-xl bg-stone-800 hover:bg-red-900/60 text-stone-400 hover:text-red-300 font-bold text-xs uppercase tracking-wider flex items-center gap-1.5 cursor-pointer transition-colors"
+                        title="Eliminar temporizador"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
                   </div>
                 </div>
               );
@@ -274,10 +349,15 @@ export default function App() {
     setVoiceInitialText('');
     setIsWakeWordTriggered(false);
     setShowVoiceModal(true);
+    // Iniciar captura limpia e inmediata aprovechando el gesto táctil del usuario
+    voiceCommander.startListening();
   };
 
   // Station Manager Modal
   const [showStationManager, setShowStationManager] = useState(false);
+
+  // Shift Handover Modal
+  const [showHandoverModal, setShowHandoverModal] = useState(false);
   
   // 86 (Platos Agotados) State in Logística
   const [nombre86, setNombre86] = useState('');
@@ -308,11 +388,23 @@ export default function App() {
     const waUrl = `https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`;
     window.open(waUrl, '_blank');
 
-    if (navigator.clipboard) {
-      navigator.clipboard.writeText(text);
+    try {
+      if (navigator.clipboard && window.isSecureContext) {
+        navigator.clipboard.writeText(text);
+      } else {
+        const textArea = document.createElement('textarea');
+        textArea.value = text;
+        textArea.style.position = 'fixed';
+        textArea.style.left = '-999999px';
+        document.body.appendChild(textArea);
+        textArea.focus();
+        textArea.select();
+        document.execCommand('copy');
+        textArea.remove();
+      }
       setCopied86(true);
       setTimeout(() => setCopied86(false), 2500);
-    }
+    } catch {}
   };
 
   // Tick for real-time header KPIs and countdowns
@@ -416,6 +508,16 @@ export default function App() {
               {wakeWordEnabled && isAmbientListening && (
                 <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping inline-block" />
               )}
+            </button>
+
+            {/* Quick Shift Handover Button */}
+            <button
+              onClick={() => setShowHandoverModal(true)}
+              className="min-h-[40px] px-2.5 sm:px-3 rounded-xl border border-amber-500/40 bg-amber-500/10 hover:bg-amber-500/20 text-amber-500 dark:text-amber-400 flex items-center gap-1.5 text-xs font-bold transition-all cursor-pointer shadow-xs active:scale-95"
+              title="Pase de Turno y Relevo a WhatsApp"
+            >
+              <ClipboardCheck className="w-4 h-4 stroke-[2.4]" />
+              <span className="hidden md:inline font-mono">Relevo</span>
             </button>
 
             {/* Quick Zen Mode Button */}
@@ -1077,13 +1179,15 @@ export default function App() {
           <div className={`w-13 h-13 rounded-full flex items-center justify-center transition-all ${
             wakeWordEnabled
               ? 'bg-gradient-to-tr from-amber-500 via-amber-400 to-[#fce082] text-stone-950 shadow-[0_4px_25px_rgba(212,175,55,0.6)] border-2 border-[#fff0a8] ring-4 ring-amber-500/20'
-              : 'bg-gradient-to-tr from-amber-500 via-amber-400 to-[#e8cd87] text-stone-950 shadow-[0_4px_22px_rgba(212,175,55,0.45)] border-2 border-[#fce082]'
+              : 'bg-stone-800 text-stone-200 border-2 border-stone-700 shadow-md'
           } group-hover:scale-105`}>
-            <Mic className="w-6 h-6 stroke-[2.4] text-stone-950" />
-            <span className="absolute -top-0.5 -right-0.5 flex h-3.5 w-3.5">
-              <span className={`animate-ping absolute inline-flex h-full w-full rounded-full ${wakeWordEnabled ? 'bg-amber-400' : 'bg-emerald-400'} opacity-75`}></span>
-              <span className={`relative inline-flex rounded-full h-3.5 w-3.5 ${wakeWordEnabled ? 'bg-amber-400 ring-2 ring-stone-950' : 'bg-emerald-500'}`}></span>
-            </span>
+            <Mic className={`w-6 h-6 stroke-[2.4] ${wakeWordEnabled ? 'text-stone-950' : 'text-amber-400'}`} />
+            {wakeWordEnabled && (
+              <span className="absolute -top-0.5 -right-0.5 flex h-3.5 w-3.5">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-3.5 w-3.5 bg-emerald-500 ring-2 ring-stone-950"></span>
+              </span>
+            )}
           </div>
           <span className="text-[0.62rem] font-bold uppercase tracking-wider text-amber-500 dark:text-amber-400 mt-0.5">
             {wakeWordEnabled ? 'Oye Chef' : 'Voz'}
@@ -1143,6 +1247,12 @@ export default function App() {
       <StationManagerModal
         open={showStationManager}
         onOpenChange={setShowStationManager}
+      />
+
+      {/* Modal de Pase de Turno Express y Relevo para WhatsApp */}
+      <ShiftHandoverModal
+        isOpen={showHandoverModal}
+        onClose={() => setShowHandoverModal(false)}
       />
     </div>
   );

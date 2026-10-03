@@ -27,6 +27,7 @@ import {
 } from '../store/useBrigadeStore';
 import { useTheme } from '../hooks/useTheme';
 import { APPCCReportModal } from './APPCCReportModal';
+import { audioService } from '../utils/audioSingleton';
 
 const MEDIDAS_CORRECTORAS_SUGERIDAS = [
   'Regulado termostato del equipo',
@@ -86,27 +87,7 @@ export function APPCCDashboard() {
   };
 
   const playSuccessChime = () => {
-    try {
-      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
-      if (AudioCtx) {
-        const ctx = new AudioCtx();
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
-        osc.type = 'sine';
-        osc.frequency.setValueAtTime(523.25, ctx.currentTime); // C5
-        osc.frequency.setValueAtTime(659.25, ctx.currentTime + 0.1); // E5
-        gain.gain.setValueAtTime(0.15, ctx.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.35);
-        osc.connect(gain);
-        gain.connect(ctx.destination);
-        osc.start();
-        osc.stop(ctx.currentTime + 0.35);
-      }
-    } catch {}
-
-    if ('vibrate' in navigator) {
-      navigator.vibrate([60, 40, 80]);
-    }
+    audioService.playSuccessChime();
   };
 
   // Botón Rápido 1-Tap: Registrar Todo Conforme

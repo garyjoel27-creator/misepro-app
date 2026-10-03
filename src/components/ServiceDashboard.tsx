@@ -13,6 +13,7 @@ import {
 import { useBrigadeStore, type Temporizador } from '../store/useBrigadeStore';
 import { getStationConfig } from '../types/stations';
 import { useTheme } from '../hooks/useTheme';
+import { audioService } from '../utils/audioSingleton';
 
 export function ServiceDashboard() {
   const { isDark } = useTheme();
@@ -333,7 +334,6 @@ function TimerCard({
   const timeFormatted = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
 
   useEffect(() => {
-    let audioCtx: AudioContext | null = null;
     let intervalId: ReturnType<typeof setInterval>;
     let soundInterval: ReturnType<typeof setInterval>;
 
@@ -346,32 +346,7 @@ function TimerCard({
       }
       
       const playBeep = () => {
-        if (!audioCtx) {
-          const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
-          if (AudioContextClass) {
-            audioCtx = new AudioContextClass();
-          } else {
-            return;
-          }
-        }
-        if (audioCtx.state === 'suspended') {
-          audioCtx.resume();
-        }
-        const oscillator = audioCtx.createOscillator();
-        const gainNode = audioCtx.createGain();
-        
-        oscillator.type = 'square';
-        oscillator.frequency.setValueAtTime(880, audioCtx.currentTime);
-        oscillator.frequency.exponentialRampToValueAtTime(440, audioCtx.currentTime + 0.1);
-        
-        gainNode.gain.setValueAtTime(0.12, audioCtx.currentTime);
-        gainNode.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.5);
-        
-        oscillator.connect(gainNode);
-        gainNode.connect(audioCtx.destination);
-        
-        oscillator.start();
-        oscillator.stop(audioCtx.currentTime + 0.5);
+        audioService.playTimerBeep();
       };
 
       playBeep();
@@ -381,9 +356,6 @@ function TimerCard({
     return () => {
       if (intervalId) clearInterval(intervalId);
       if (soundInterval) clearInterval(soundInterval);
-      if (audioCtx && audioCtx.state !== 'closed') {
-        audioCtx.close().catch(() => {});
-      }
     };
   }, [isFinished, timer.alarmaSilenciada]);
 
@@ -456,15 +428,38 @@ function TimerCard({
           </button>
         </div>
       ) : (
-        !timer.alarmaSilenciada && (
+        <div className="flex flex-col gap-2">
+          {/* Botón 1-Tap Oído y Archivar (Acción estrella en el pase) */}
           <button
-            onClick={() => onSilenciar(timer.id)}
-            className="w-full min-h-[52px] rounded-2xl bg-red-600 hover:bg-red-500 active:bg-red-700 text-white font-black text-sm sm:text-base uppercase tracking-widest cursor-pointer shadow-xl shadow-red-600/40 transition-all flex items-center justify-center gap-2 animate-bounce ring-2 ring-red-400"
+            onClick={() => {
+              onSilenciar(timer.id);
+              onEliminar(timer.id);
+            }}
+            className="w-full min-h-[50px] rounded-2xl bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 text-white font-black text-sm sm:text-base uppercase tracking-widest cursor-pointer shadow-xl shadow-emerald-600/30 transition-all flex items-center justify-center gap-2 ring-2 ring-emerald-400 active:scale-95"
           >
-            <BellRing className="w-6 h-6" />
-            Detener Alarma
+            <span>✅ Oído y Archivar</span>
           </button>
-        )
+
+          <div className="grid grid-cols-2 gap-2">
+            {!timer.alarmaSilenciada && (
+              <button
+                onClick={() => onSilenciar(timer.id)}
+                className="min-h-[42px] rounded-xl bg-stone-800 hover:bg-stone-700 text-stone-200 font-bold text-xs uppercase tracking-wider cursor-pointer transition-all flex items-center justify-center gap-1.5"
+              >
+                <BellRing className="w-4 h-4 text-red-400" />
+                <span>Silenciar</span>
+              </button>
+            )}
+            <button
+              onClick={() => onAjustar(timer.id, 120)}
+              className={`min-h-[42px] rounded-xl border font-bold text-xs uppercase tracking-wider cursor-pointer transition-all flex items-center justify-center gap-1.5 ${
+                timer.alarmaSilenciada ? 'col-span-2' : ''
+              } bg-amber-500/20 hover:bg-amber-500/30 text-amber-400 border-amber-500/40`}
+            >
+              <span>+2 Min Dorar</span>
+            </button>
+          </div>
+        </div>
       )}
 
       {/* Bottom Controls Bar (Play/Pause, Reset, Delete) - Tactile Sizing */}

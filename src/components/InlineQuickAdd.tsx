@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { Plus, Zap, Trash2, ChevronDown, Check } from 'lucide-react';
 import { useBrigadeStore, type ProcesoHabitual } from '../store/useBrigadeStore';
 import { useTheme } from '../hooks/useTheme';
-import { startsWithActionVerb } from '../hooks/useVoiceCommander';
+import { startsWithActionVerb, extractMetricQuantity } from '../hooks/useVoiceCommander';
 
 export function InlineQuickAdd({ partida }: { partida: string }) {
   const { isDark } = useTheme();
@@ -33,14 +33,19 @@ export function InlineQuickAdd({ partida }: { partida: string }) {
     e.preventDefault();
     if (!nombre.trim()) return;
     
-    const isAction = startsWithActionVerb(nombre);
+    // Extracción inteligente de métricas ("5 kg tomates" -> cant: 5, uni: kg, nombre: Tomates)
+    const metric = extractMetricQuantity(nombre);
+    const finalNombre = (metric.hasMetric && metric.textoRestante ? metric.textoRestante : nombre).trim();
+    const finalCantidad = metric.hasMetric && metric.cantidad ? metric.cantidad : cantidad;
+    const finalUnidad = metric.hasMetric && metric.unidad ? metric.unidad : 'Kg';
+    const isAction = startsWithActionVerb(finalNombre);
 
     agregarTarea({
       id: crypto.randomUUID(),
-      nombre: nombre.trim(),
+      nombre: finalNombre,
       tipo: isAction ? 'accion' : 'elaboracion',
-      cantidad: isAction ? undefined : cantidad,
-      unidad: isAction ? undefined : 'Kg',
+      cantidad: isAction ? undefined : finalCantidad,
+      unidad: isAction ? undefined : finalUnidad,
       prioridad: 'Media',
       estado: 'Pendiente',
       partida,

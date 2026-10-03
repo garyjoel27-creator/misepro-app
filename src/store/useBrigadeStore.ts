@@ -305,6 +305,7 @@ export const useBrigadeStore = create<BrigadeState>((setStore, getStore) => ({
             return { 
               ...t, 
               segundosRestantesPausado: restante, 
+              alarmaSilenciada: false,
               estado: (restante > 0 ? 'pausado' : 'terminado') as Temporizador['estado']
             };
           }
@@ -312,6 +313,7 @@ export const useBrigadeStore = create<BrigadeState>((setStore, getStore) => ({
           return { 
             ...t, 
             finTimestamp: nuevoFin, 
+            alarmaSilenciada: false,
             estado: (nuevoFin > Date.now() ? 'activo' : 'terminado') as Temporizador['estado']
           };
         })

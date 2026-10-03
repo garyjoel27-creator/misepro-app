@@ -552,158 +552,45 @@ export function locateExistingItem(
   return null;
 }
 
+import { audioService } from '../utils/audioSingleton';
+
 /**
- * Generadores de Chimes Culinarios por Web Audio API (Offline, Zero Dependencias)
+ * Generadores de Chimes Culinarios por Web Audio API (Offline, Zero Dependencias, Singleton)
  */
-function getAudioContext(): AudioContext | null {
-  try {
-    const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
-    if (!AudioCtx) return null;
-    const ctx = new AudioCtx();
-    if (ctx.state === 'suspended') {
-      ctx.resume().catch(() => {});
-    }
-    return ctx;
-  } catch {
-    return null;
-  }
-}
-
 export function playWakeChime() {
-  try {
-    const ctx = getAudioContext();
-    if (ctx) {
-      const now = ctx.currentTime;
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-
-      osc.type = 'sine';
-      osc.frequency.setValueAtTime(523.25, now); // C5
-      osc.frequency.setValueAtTime(659.25, now + 0.08); // E5
-      osc.frequency.setValueAtTime(783.99, now + 0.16); // G5
-
-      gain.gain.setValueAtTime(0.18, now);
-      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.38);
-
-      osc.connect(gain);
-      gain.connect(ctx.destination);
-      osc.start(now);
-      osc.stop(now + 0.38);
-      osc.onended = () => {
-        try { ctx.close().catch(() => {}); } catch {}
-      };
-      setTimeout(() => {
-        try { if (ctx.state !== 'closed') ctx.close().catch(() => {}); } catch {}
-      }, 550);
-    }
-  } catch {}
-
-  if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
-    try { navigator.vibrate([40, 30, 60]); } catch {}
-  }
+  audioService.playWakeChime();
 }
 
 export function playSuccessChime() {
-  try {
-    const ctx = getAudioContext();
-    if (ctx) {
-      const now = ctx.currentTime;
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-
-      osc.type = 'sine';
-      osc.frequency.setValueAtTime(587.33, now); // D5
-      osc.frequency.setValueAtTime(880, now + 0.09); // A5
-
-      gain.gain.setValueAtTime(0.18, now);
-      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
-
-      osc.connect(gain);
-      gain.connect(ctx.destination);
-      osc.start(now);
-      osc.stop(now + 0.35);
-      osc.onended = () => {
-        try { ctx.close().catch(() => {}); } catch {}
-      };
-      setTimeout(() => {
-        try { if (ctx.state !== 'closed') ctx.close().catch(() => {}); } catch {}
-      }, 500);
-    }
-  } catch {}
-
-  if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
-    try { navigator.vibrate([60, 40, 80]); } catch {}
-  }
+  audioService.playSuccessChime();
 }
 
 export function playCancelChime() {
-  try {
-    const ctx = getAudioContext();
-    if (ctx) {
-      const now = ctx.currentTime;
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-
-      osc.type = 'sine';
-      osc.frequency.setValueAtTime(440, now); // A4
-      osc.frequency.setValueAtTime(329.63, now + 0.08); // E4
-
-      gain.gain.setValueAtTime(0.12, now);
-      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.25);
-
-      osc.connect(gain);
-      gain.connect(ctx.destination);
-      osc.start(now);
-      osc.stop(now + 0.25);
-      osc.onended = () => {
-        try { ctx.close().catch(() => {}); } catch {}
-      };
-      setTimeout(() => {
-        try { if (ctx.state !== 'closed') ctx.close().catch(() => {}); } catch {}
-      }, 400);
-    }
-  } catch {}
+  audioService.playCancelChime();
 }
 
 export function playAlertChime() {
-  try {
-    const ctx = getAudioContext();
-    if (ctx) {
-      const now = ctx.currentTime;
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-
-      osc.type = 'triangle';
-      osc.frequency.setValueAtTime(698.46, now); // F5
-      osc.frequency.setValueAtTime(880, now + 0.08); // A5
-
-      gain.gain.setValueAtTime(0.15, now);
-      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.28);
-
-      osc.connect(gain);
-      gain.connect(ctx.destination);
-      osc.start(now);
-      osc.stop(now + 0.28);
-      osc.onended = () => {
-        try { ctx.close().catch(() => {}); } catch {}
-      };
-      setTimeout(() => {
-        try { if (ctx.state !== 'closed') ctx.close().catch(() => {}); } catch {}
-      }, 450);
-    }
-  } catch {}
-
-  if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
-    try { navigator.vibrate([30, 20, 30]); } catch {}
-  }
+  audioService.playAlertChime();
 }
 
 const WAKE_WORDS = [
   'oye chef',
   'oiga chef',
-  'chef',
+  'hola chef',
+  'hey chef',
+  'ey chef',
+  'dime chef',
   'atento chef',
   'escucha chef',
+  'chef',
+  'cheff',
+  'chefe',
+  'oye che',
+  'oiga che',
+  'oye jefe',
+  'oiga jefe',
+  'jefe de cocina',
+  'jefe',
   'misepro',
   'mise pro',
   'oye cocina',
@@ -711,14 +598,16 @@ const WAKE_WORDS = [
 ];
 
 export function checkWakeWord(text: string): { isWake: boolean; remainderText: string } {
-  const clean = text.toLowerCase().trim();
+  if (!text) return { isWake: false, remainderText: '' };
+  const clean = text.toLowerCase().trim().replace(/^[¿?¡!.,;:]+/, '').trim();
+  
   for (const w of WAKE_WORDS) {
     const regex = new RegExp(`^${w}\\b[:\\s,]*`, 'i');
     if (regex.test(clean)) {
       const remainder = clean.replace(regex, '').trim();
       return { isWake: true, remainderText: remainder };
     }
-    // Si contiene el wake word en cualquier parte
+    // Si contiene el wake word en cualquier parte de la frase
     const idx = clean.indexOf(w);
     if (idx !== -1) {
       const remainder = clean.slice(idx + w.length).replace(/^[:\s,]+/, '').trim();
@@ -766,9 +655,12 @@ export function useVoiceCommander(
   // Manos Libres (Wake Word Engine)
   const [wakeWordEnabled, setWakeWordEnabled] = useState<boolean>(() => {
     try {
-      return localStorage.getItem('misepro_wake_word_enabled') === 'true';
+      const saved = localStorage.getItem('misepro_wake_word_enabled');
+      if (saved !== null) return saved === 'true';
+      // Por defecto activo en cocina profesional para que "Oye Chef" responda desde el primer acceso
+      return true;
     } catch {
-      return false;
+      return true;
     }
   });
 
@@ -803,7 +695,7 @@ export function useVoiceCommander(
   }, []);
 
   // Función núcleo para asegurar que el reconocimiento esté activo sin colisiones
-  const ensureRecognitionRunning = useCallback(() => {
+  const ensureRecognitionRunning = useCallback((forceFreshSession = false) => {
     if (typeof window === 'undefined') return;
     const SpeechRecognition = 
       (window as unknown as { SpeechRecognition?: any }).SpeechRecognition || 
@@ -814,8 +706,8 @@ export function useVoiceCommander(
     // Si el usuario pausó explícitamente el micrófono, respetar la pausa
     if (userPausedRef.current) return;
 
-    // Si ya está activo o en proceso de inicio, actualizar estados UI
-    if (isRunningRef.current || isStartingRef.current) {
+    // Si ya está activo y no se fuerza sesión limpia, actualizar estados UI
+    if (!forceFreshSession && (isRunningRef.current || isStartingRef.current)) {
       if (isModalOpenRef.current) {
         setIsListening(true);
         setIsAmbientListening(false);
@@ -831,19 +723,18 @@ export function useVoiceCommander(
       restartTimerRef.current = null;
     }
 
-    // Limpieza de instancia inactiva residual
+    // Limpieza de instancia inactiva o previa
     if (recognitionRef.current) {
       try {
         recognitionRef.current.onstart = null;
         recognitionRef.current.onend = null;
         recognitionRef.current.onerror = null;
         recognitionRef.current.onresult = null;
-        if (isRunningRef.current) {
-          recognitionRef.current.abort();
-        }
+        recognitionRef.current.abort();
       } catch {}
       recognitionRef.current = null;
     }
+    isRunningRef.current = false;
 
     try {
       const recognition = new SpeechRecognition();
@@ -1111,7 +1002,7 @@ export function useVoiceCommander(
       if (next) {
         playWakeChime();
         userPausedRef.current = false;
-        ensureRecognitionRunning();
+        ensureRecognitionRunning(true);
       } else {
         playCancelChime();
         if (!isModalOpenRef.current) {
@@ -1136,7 +1027,8 @@ export function useVoiceCommander(
     setParsedCommand(null);
     userPausedRef.current = false;
     sessionStartIndexRef.current = 0;
-    ensureRecognitionRunning();
+    playWakeChime();
+    ensureRecognitionRunning(true);
   }, [ensureRecognitionRunning]);
 
   const stopListening = useCallback(() => {

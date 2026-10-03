@@ -187,7 +187,11 @@ export function TaskCard({ tarea, index, isMobile = false }: TaskCardProps) {
       </button>
 
       {/* Main Info — KDS Bold Typography */}
-      <div className="flex-1 min-w-0 flex flex-col gap-0.5">
+      <div 
+        onClick={() => !isCompletado && setIsEditing(true)}
+        className="flex-1 min-w-0 flex flex-col gap-0.5 cursor-pointer select-none"
+        title="Toca para editar"
+      >
         <div className="flex items-center gap-2 min-w-0">
           <span className={`text-sm sm:text-base font-bold tracking-tight whitespace-normal break-words transition-all duration-300 ${
             isCompletado
@@ -227,8 +231,9 @@ export function TaskCard({ tarea, index, isMobile = false }: TaskCardProps) {
         <button
           type="button"
           onClick={() => setIsEditing(true)}
-          className="w-9 h-9 rounded-xl flex items-center justify-center text-stone-400 hover:text-stone-700 dark:text-slate-500 dark:hover:text-slate-200 hover:bg-stone-100 dark:hover:bg-slate-800 transition-colors cursor-pointer active:scale-95"
+          className="w-11 h-11 min-w-[44px] min-h-[44px] rounded-xl flex items-center justify-center text-stone-400 hover:text-stone-700 dark:text-slate-500 dark:hover:text-slate-200 hover:bg-stone-100 dark:hover:bg-slate-800 transition-colors cursor-pointer active:scale-95 touch-manipulation"
           title="Editar elaboración"
+          aria-label="Editar elaboración"
         >
           <Pencil className="w-4 h-4" />
         </button>
