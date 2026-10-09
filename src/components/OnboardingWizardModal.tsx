@@ -50,10 +50,25 @@ export function OnboardingWizardModal() {
     }
   };
 
+  const handleSkip = () => {
+    // Permite al chef entrar de inmediato sin forzar la configuración inicial
+    finalizarOnboarding(restaurantName, ['Saucier', 'Garde Manger', 'Pescados', 'Carnes'], true);
+  };
+
   return (
     <div className="fixed inset-0 z-50 bg-slate-950/90 backdrop-blur-2xl flex items-center justify-center p-3 sm:p-6 select-none animate-in fade-in duration-300">
       <div className="relative w-full max-w-xl bg-gradient-to-b from-stone-900/95 to-[#080b12] border-2 border-amber-500/50 rounded-3xl p-6 sm:p-8 shadow-[0_0_60px_rgba(245,158,11,0.2)] flex flex-col max-h-[92vh] overflow-y-auto">
         
+        {/* Close / Skip Button */}
+        <button
+          type="button"
+          onClick={handleSkip}
+          className="absolute top-4 right-4 w-9 h-9 rounded-xl bg-stone-800/80 hover:bg-stone-700 text-stone-400 hover:text-white flex items-center justify-center transition-colors cursor-pointer z-10"
+          title="Omitir y entrar directo"
+        >
+          <X className="w-5 h-5" />
+        </button>
+
         {/* Brand Header */}
         <div className="text-center pb-5 border-b border-white/10">
           <div className="w-14 h-14 mx-auto rounded-3xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-400 mb-3 shadow-lg shadow-amber-500/10">
@@ -233,14 +248,24 @@ export function OnboardingWizardModal() {
           )}
         </div>
 
-        {/* Action Button */}
-        <button
-          onClick={handleComplete}
-          className="w-full min-h-[54px] rounded-2xl bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-400 hover:to-amber-300 text-stone-950 font-black text-sm uppercase tracking-wider flex items-center justify-center gap-2 shadow-xl shadow-amber-500/20 cursor-pointer transition-transform active:scale-98"
-        >
-          <span>Comenzar en Mi Cocina</span>
-          <ArrowRight className="w-5 h-5 stroke-[2.5]" />
-        </button>
+        {/* Action Buttons */}
+        <div className="flex flex-col gap-2.5 pt-2">
+          <button
+            onClick={handleComplete}
+            className="w-full min-h-[52px] rounded-2xl bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-400 hover:to-amber-300 text-stone-950 font-black text-sm uppercase tracking-wider flex items-center justify-center gap-2 shadow-xl shadow-amber-500/20 cursor-pointer transition-transform active:scale-98"
+          >
+            <span>Comenzar en Mi Cocina</span>
+            <ArrowRight className="w-5 h-5 stroke-[2.5]" />
+          </button>
+
+          <button
+            type="button"
+            onClick={handleSkip}
+            className="w-full py-2 text-xs font-bold text-stone-400 hover:text-amber-400 transition-colors cursor-pointer text-center"
+          >
+            Saltar por ahora (Entrar directo con partidas estándar)
+          </button>
+        </div>
 
       </div>
     </div>

@@ -209,16 +209,84 @@ export const PROCESOS_HABITUALES_INICIALES: ProcesoHabitual[] = [
   { id: 'proc-p4', nombre: 'Fumet Blanco de Roca y Mariscos', partida: 'Pescados', cantidadSugerida: 8, unidad: 'Litros', prioridad: 'Critica' },
 ];
 
+const getInitialOnboardingState = (): boolean => {
+  if (typeof window === 'undefined') return false;
+  try {
+    const val = localStorage.getItem('misepro_has_onboarding');
+    if (val !== null) return val === 'true';
+    if (localStorage.getItem('misepro_restaurant_name') || localStorage.getItem('misepro_partidas')) {
+      return true;
+    }
+  } catch {}
+  return false;
+};
+
+const getInitialRestaurantName = (): string => {
+  if (typeof window === 'undefined') return 'Mi Cocina Pro';
+  try {
+    const val = localStorage.getItem('misepro_restaurant_name');
+    if (val && val.trim()) return val.trim();
+  } catch {}
+  return 'Mi Cocina Pro';
+};
+
+const getInitialPartidas = (): string[] => {
+  if (typeof window === 'undefined') return ['Saucier', 'Garde Manger', 'Pescados', 'Carnes'];
+  try {
+    const val = localStorage.getItem('misepro_partidas');
+    if (val) {
+      const parsed = JSON.parse(val);
+      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+    }
+  } catch {}
+  return ['Saucier', 'Garde Manger', 'Pescados', 'Carnes'];
+};
+
+const getInitialColoresPartidas = (): Record<string, string> => {
+  if (typeof window === 'undefined') return {};
+  try {
+    const val = localStorage.getItem('misepro_colores_partidas');
+    if (val) {
+      const parsed = JSON.parse(val);
+      if (typeof parsed === 'object' && parsed !== null) return parsed;
+    }
+  } catch {}
+  return {};
+};
+
+const syncCoreToLocalStorage = (data: {
+  hasConfiguredOnboarding?: boolean;
+  nombreRestaurante?: string;
+  partidas?: string[];
+  coloresPartidas?: Record<string, string>;
+}) => {
+  if (typeof window === 'undefined') return;
+  try {
+    if (data.hasConfiguredOnboarding !== undefined) {
+      localStorage.setItem('misepro_has_onboarding', String(data.hasConfiguredOnboarding));
+    }
+    if (data.nombreRestaurante !== undefined) {
+      localStorage.setItem('misepro_restaurant_name', data.nombreRestaurante);
+    }
+    if (data.partidas !== undefined) {
+      localStorage.setItem('misepro_partidas', JSON.stringify(data.partidas));
+    }
+    if (data.coloresPartidas !== undefined) {
+      localStorage.setItem('misepro_colores_partidas', JSON.stringify(data.coloresPartidas));
+    }
+  } catch {}
+};
+
 export const useBrigadeStore = create<BrigadeState>((setStore, getStore) => ({
   turnoActual: {
     nombreServicio: 'Cena',
     comensales: 120,
     horaPase: '20:30',
   },
-  nombreRestaurante: 'Mi Cocina Pro',
-  hasConfiguredOnboarding: false,
-  partidas: ['Saucier', 'Garde Manger', 'Pescados', 'Carnes'],
-  coloresPartidas: {},
+  nombreRestaurante: getInitialRestaurantName(),
+  hasConfiguredOnboarding: getInitialOnboardingState(),
+  partidas: getInitialPartidas(),
+  coloresPartidas: getInitialColoresPartidas(),
   procesosHabituales: PROCESOS_HABITUALES_INICIALES,
   kanbanTareas: [
     { id: '1', nombre: 'Fondo Oscuro', cantidad: 10, unidad: 'Litros', tipo: 'elaboracion', prioridad: 'Critica', estado: 'Pendiente', partida: 'Saucier' },
@@ -454,6 +522,10 @@ export const useBrigadeStore = create<BrigadeState>((setStore, getStore) => ({
         nombreRestaurante: clean,
         hasConfiguredOnboarding: true 
       };
+      syncCoreToLocalStorage({
+        hasConfiguredOnboarding: true,
+        nombreRestaurante: clean
+      });
       set('brigade-sync-store', { ...state, ...newState });
       return newState;
     });
@@ -465,13 +537,19 @@ export const useBrigadeStore = create<BrigadeState>((setStore, getStore) => ({
       if (plantilla || finalPartidas.length === 0) {
         finalPartidas = ['Saucier', 'Garde Manger', 'Pescados', 'Carnes'];
       }
+      const cleanName = nombreRestaurante.trim() || 'Mi Cocina Pro';
       const newState = {
-        nombreRestaurante: nombreRestaurante.trim() || 'Mi Cocina Pro',
+        nombreRestaurante: cleanName,
         hasConfiguredOnboarding: true,
         partidas: finalPartidas,
         // Si eligió plantilla, mantenemos las tareas de demo, si eligió limpio, vaciamos tareas
         kanbanTareas: plantilla ? state.kanbanTareas : []
       };
+      syncCoreToLocalStorage({
+        hasConfiguredOnboarding: true,
+        nombreRestaurante: cleanName,
+        partidas: finalPartidas
+      });
       set('brigade-sync-store', { ...state, ...newState });
       return newState;
     });
@@ -480,6 +558,7 @@ export const useBrigadeStore = create<BrigadeState>((setStore, getStore) => ({
   reiniciarOnboarding: () => {
     setStore((state) => {
       const newState = { hasConfiguredOnboarding: false };
+      syncCoreToLocalStorage({ hasConfiguredOnboarding: false });
       set('brigade-sync-store', { ...state, ...newState });
       return newState;
     });
@@ -493,11 +572,17 @@ export const useBrigadeStore = create<BrigadeState>((setStore, getStore) => ({
       if (colorKey) {
         newColores[clean] = colorKey;
       }
+      const newPartidas = [...state.partidas, clean];
       const newState = { 
-        partidas: [...state.partidas, clean],
+        partidas: newPartidas,
         coloresPartidas: newColores,
         hasConfiguredOnboarding: true
       };
+      syncCoreToLocalStorage({
+        hasConfiguredOnboarding: true,
+        partidas: newPartidas,
+        coloresPartidas: newColores
+      });
       set('brigade-sync-store', { ...state, ...newState });
       return newState;
     });
@@ -522,6 +607,11 @@ export const useBrigadeStore = create<BrigadeState>((setStore, getStore) => ({
         coloresPartidas: newColores,
         hasConfiguredOnboarding: true
       };
+      syncCoreToLocalStorage({
+        hasConfiguredOnboarding: true,
+        partidas: newPartidas,
+        coloresPartidas: newColores
+      });
       set('brigade-sync-store', { ...state, ...newState });
       return newState;
     });
@@ -534,6 +624,10 @@ export const useBrigadeStore = create<BrigadeState>((setStore, getStore) => ({
         coloresPartidas: newColores,
         hasConfiguredOnboarding: true 
       };
+      syncCoreToLocalStorage({
+        hasConfiguredOnboarding: true,
+        coloresPartidas: newColores
+      });
       set('brigade-sync-store', { ...state, ...newState });
       return newState;
     });
@@ -543,12 +637,18 @@ export const useBrigadeStore = create<BrigadeState>((setStore, getStore) => ({
     setStore((state) => {
       const newColores = { ...state.coloresPartidas };
       delete newColores[nombre];
+      const newPartidas = state.partidas.filter(p => p !== nombre);
       const newState = { 
-        partidas: state.partidas.filter(p => p !== nombre),
+        partidas: newPartidas,
         kanbanTareas: state.kanbanTareas.filter(t => t.partida !== nombre),
         coloresPartidas: newColores,
         hasConfiguredOnboarding: true
       };
+      syncCoreToLocalStorage({
+        hasConfiguredOnboarding: true,
+        partidas: newPartidas,
+        coloresPartidas: newColores
+      });
       set('brigade-sync-store', { ...state, ...newState });
       return newState;
     });
@@ -562,6 +662,11 @@ export const useBrigadeStore = create<BrigadeState>((setStore, getStore) => ({
         coloresPartidas: {},
         hasConfiguredOnboarding: true
       };
+      syncCoreToLocalStorage({
+        hasConfiguredOnboarding: true,
+        partidas: [],
+        coloresPartidas: {}
+      });
       set('brigade-sync-store', { ...state, ...newState });
       return newState;
     });
@@ -570,16 +675,22 @@ export const useBrigadeStore = create<BrigadeState>((setStore, getStore) => ({
   cargarPlantillaClasica: () => {
     setStore((state) => {
       const clasicas = ['Saucier', 'Garde Manger', 'Pescados', 'Carnes'];
+      const colores = {
+        Saucier: 'amber',
+        'Garde Manger': 'emerald',
+        Pescados: 'sky',
+        Carnes: 'red'
+      };
       const newState = {
         partidas: clasicas,
-        coloresPartidas: {
-          Saucier: 'amber',
-          'Garde Manger': 'emerald',
-          Pescados: 'sky',
-          Carnes: 'red'
-        },
+        coloresPartidas: colores,
         hasConfiguredOnboarding: true
       };
+      syncCoreToLocalStorage({
+        hasConfiguredOnboarding: true,
+        partidas: clasicas,
+        coloresPartidas: colores
+      });
       set('brigade-sync-store', { ...state, ...newState });
       return newState;
     });
@@ -612,6 +723,12 @@ export const useBrigadeStore = create<BrigadeState>((setStore, getStore) => ({
           procesosHabituales: Array.isArray(data.procesosHabituales) ? data.procesosHabituales : state.procesosHabituales,
           hasConfiguredOnboarding: true
         };
+        syncCoreToLocalStorage({
+          hasConfiguredOnboarding: true,
+          nombreRestaurante: newState.nombreRestaurante,
+          partidas: newState.partidas,
+          coloresPartidas: newState.coloresPartidas
+        });
         set('brigade-sync-store', { ...state, ...newState });
         return newState;
       });
@@ -679,7 +796,8 @@ export const useBrigadeStore = create<BrigadeState>((setStore, getStore) => ({
     try {
       const data = await get('brigade-sync-store');
       if (data) {
-        const hasOnboarding = data.hasConfiguredOnboarding === true || (Array.isArray(data.partidas) && data.partidas.length > 0);
+        const localConfigured = typeof window !== 'undefined' && localStorage.getItem('misepro_has_onboarding') === 'true';
+        const hasOnboarding = localConfigured || data.hasConfiguredOnboarding === true || (Array.isArray(data.partidas) && data.partidas.length > 0);
         const mergedData = {
            ...data,
            turnoActual: data.turnoActual ?? getStore().turnoActual,
@@ -706,6 +824,12 @@ export const useBrigadeStore = create<BrigadeState>((setStore, getStore) => ({
            registrosAPPCC: Array.isArray(data.registrosAPPCC) ? data.registrosAPPCC : [],
            datosEstablecimientoAPPCC: data.datosEstablecimientoAPPCC ?? getStore().datosEstablecimientoAPPCC
         };
+        syncCoreToLocalStorage({
+          hasConfiguredOnboarding: hasOnboarding,
+          nombreRestaurante: mergedData.nombreRestaurante,
+          partidas: mergedData.partidas,
+          coloresPartidas: mergedData.coloresPartidas
+        });
         setStore(mergedData);
       }
     } catch (e) {

@@ -353,8 +353,15 @@ export default function App() {
     voiceCommander.startListening();
   };
 
-  // Station Manager Modal
+  // Station Manager Modal & Progressive Setup Hint
   const [showStationManager, setShowStationManager] = useState(false);
+  const [dismissStationPrompt, setDismissStationPrompt] = useState(() => {
+    try {
+      return localStorage.getItem('misepro_dismiss_station_prompt') === 'true';
+    } catch {
+      return false;
+    }
+  });
 
   // Shift Handover Modal
   const [showHandoverModal, setShowHandoverModal] = useState(false);
@@ -561,7 +568,51 @@ export default function App() {
 
         {/* Tab 1: MISE EN PLACE (PREP) */}
         {activeTab === 'prep' && (
-          <Tabs.Root defaultValue="Panel Maestro" className="flex flex-col w-full h-full flex-1">
+          <div className="flex flex-col w-full h-full flex-1">
+            {/* Banner progresivo no invasivo de configuración de estancias */}
+            {!dismissStationPrompt && (
+              <div className={`mb-3 p-3 sm:p-3.5 rounded-2xl border flex items-center justify-between gap-3 shadow-xs transition-all ${
+                isDark
+                  ? 'bg-gradient-to-r from-amber-500/10 via-[#131926] to-[#0c1019] border-amber-500/30 text-slate-200'
+                  : 'bg-gradient-to-r from-amber-500/10 via-stone-100 to-white border-amber-500/30 text-stone-800'
+              }`}>
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="w-8 h-8 rounded-xl bg-amber-500/20 text-amber-500 flex items-center justify-center shrink-0">
+                    <ChefHat className="w-4 h-4 stroke-[2.2]" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-xs sm:text-sm font-bold truncate">
+                      ¿Quieres adaptar las estancias a tu cocina real?
+                    </p>
+                    <p className="text-[11px] text-stone-500 dark:text-slate-400 truncate">
+                      Crea o renombra partidas como Plancha, Frituras, Cuarto Frío o Brasa en 1 toque.
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => setShowStationManager(true)}
+                    className="px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-stone-950 font-black text-xs uppercase tracking-wider transition-all cursor-pointer shadow-xs active:scale-95"
+                  >
+                    Ajustar
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setDismissStationPrompt(true);
+                      try { localStorage.setItem('misepro_dismiss_station_prompt', 'true'); } catch {}
+                    }}
+                    className="p-1.5 rounded-lg text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 transition-colors cursor-pointer"
+                    title="Descartar sugerencia"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            )}
+
+            <Tabs.Root defaultValue="Panel Maestro" className="flex flex-col w-full h-full flex-1">
             {/* Station Selection Tabs - Apple Segmented Control Style */}
             <div className="overflow-x-auto pb-2 -mx-3 px-3 sm:mx-0 sm:px-0">
               <Tabs.List 
@@ -683,7 +734,8 @@ export default function App() {
               ))}
             </div>
           </Tabs.Root>
-        )}
+        </div>
+      )}
 
         {/* Tab 2: PASE & TIMERS (SERVICE DASHBOARD) */}
         {activeTab === 'pase' && (
