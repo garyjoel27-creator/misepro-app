@@ -7,7 +7,9 @@ import {
   AlertTriangle, 
   CheckCircle2, 
   ClipboardCheck, 
-  Ban
+  Ban,
+  Trash2,
+  ListChecks
 } from 'lucide-react';
 import { useBrigadeStore } from '../store/useBrigadeStore';
 import { useTheme } from '../hooks/useTheme';
@@ -23,6 +25,8 @@ export function ShiftHandoverModal({ isOpen, onClose }: ShiftHandoverModalProps)
     kanbanTareas, 
     agotados86, 
     nombreRestaurante,
+    registrosMermas = [],
+    itemsSOP = [],
     cerrarTurno
   } = useBrigadeStore();
 
@@ -39,6 +43,10 @@ export function ShiftHandoverModal({ isOpen, onClose }: ShiftHandoverModalProps)
   const porcentajeMise = totalTareas > 0 
     ? Math.round((tareasCompletadas.length / totalTareas) * 100) 
     : 100;
+
+  const costeTotalMermas = registrosMermas.reduce((acc, m) => acc + (m.costeEstimado || 0), 0);
+  const itemsCierre = itemsSOP.filter(i => i.momento === 'cierre');
+  const itemsCierreHechos = itemsCierre.filter(i => i.completado).length;
 
   const ahora = new Date();
   const fechaStr = ahora.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'short' });
@@ -75,6 +83,22 @@ export function ShiftHandoverModal({ isOpen, onClose }: ShiftHandoverModalProps)
         msg += `  ... y ${tareasCompletadas.length - 10} elaboraciones más listas.\n`;
       }
       msg += `\n`;
+    }
+
+    if (registrosMermas.length > 0) {
+      msg += `🗑️ *MERMAS DEL TURNO:* ${registrosMermas.length} registros${costeTotalMermas > 0 ? ` (~${costeTotalMermas.toFixed(2)}€)` : ''}\n`;
+      registrosMermas.slice(0, 3).forEach(m => {
+        msg += `  • ${m.nombre} (${m.cantidad} ${m.unidad}) - ${m.motivo}\n`;
+      });
+      if (registrosMermas.length > 3) {
+        msg += `  ... y ${registrosMermas.length - 3} mermas más registradas.\n`;
+      }
+      msg += `\n`;
+    }
+
+    if (itemsCierre.length > 0) {
+      const pctCierre = Math.round((itemsCierreHechos / itemsCierre.length) * 100);
+      msg += `📋 *CHECKLIST CIERRE:* ${pctCierre}% (${itemsCierreHechos}/${itemsCierre.length} puntos completados)\n\n`;
     }
 
     if (tareasRestantes.length > 0) {
@@ -218,6 +242,51 @@ export function ShiftHandoverModal({ isOpen, onClose }: ShiftHandoverModalProps)
               {tareasCompletadas.map(t => t.nombre).join(', ') || 'Sin elaboraciones completadas'}
             </p>
           </div>
+
+          {/* Bloque Mermas del Turno */}
+          {registrosMermas.length > 0 && (
+            <div className="p-3.5 rounded-2xl bg-rose-500/10 border border-rose-500/30 text-rose-800 dark:text-rose-300">
+              <div className="flex items-center justify-between font-bold text-xs uppercase mb-1.5">
+                <div className="flex items-center gap-1.5">
+                  <Trash2 className="w-4 h-4 text-rose-500" />
+                  <span>Mermas Registradas ({registrosMermas.length})</span>
+                </div>
+                {costeTotalMermas > 0 && (
+                  <span className="font-mono text-xs font-black text-rose-600 dark:text-rose-400">
+                    ~{costeTotalMermas.toFixed(2)}€
+                  </span>
+                )}
+              </div>
+              <ul className="text-xs space-y-1 pl-1">
+                {registrosMermas.slice(0, 3).map(m => (
+                  <li key={m.id} className="opacity-90">
+                    • <strong>{m.nombre}</strong> ({m.cantidad} {m.unidad}) - {m.motivo}
+                  </li>
+                ))}
+                {registrosMermas.length > 3 && (
+                  <li className="text-[11px] opacity-75">+ {registrosMermas.length - 3} mermas más registradas</li>
+                )}
+              </ul>
+            </div>
+          )}
+
+          {/* Bloque Checklist Cierre SOP */}
+          {itemsCierre.length > 0 && (
+            <div className="p-3.5 rounded-2xl bg-blue-500/10 border border-blue-500/30 text-blue-800 dark:text-blue-300">
+              <div className="flex items-center justify-between font-bold text-xs uppercase mb-1.5">
+                <div className="flex items-center gap-1.5">
+                  <ListChecks className="w-4 h-4 text-blue-500" />
+                  <span>Checklist Cierre Partida</span>
+                </div>
+                <span className="font-mono text-xs font-black">
+                  {Math.round((itemsCierreHechos / itemsCierre.length) * 100)}%
+                </span>
+              </div>
+              <p className="text-xs opacity-90">
+                {itemsCierreHechos} de {itemsCierre.length} comprobaciones de seguridad/higiene realizadas.
+              </p>
+            </div>
+          )}
         </div>
 
         {/* Botones de Acción Primaria */}

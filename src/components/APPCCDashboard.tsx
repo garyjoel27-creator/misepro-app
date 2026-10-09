@@ -18,7 +18,8 @@ import {
   Flame,
   Snowflake,
   Refrigerator,
-  Utensils
+  Utensils,
+  Tag
 } from 'lucide-react';
 import { 
   useBrigadeStore, 
@@ -27,6 +28,7 @@ import {
 } from '../store/useBrigadeStore';
 import { useTheme } from '../hooks/useTheme';
 import { APPCCReportModal } from './APPCCReportModal';
+import { PrepLabelModal } from './PrepLabelModal';
 import { audioService } from '../utils/audioSingleton';
 
 const MEDIDAS_CORRECTORAS_SUGERIDAS = [
@@ -50,6 +52,7 @@ export function APPCCDashboard() {
   } = useBrigadeStore();
 
   const [showReportModal, setShowReportModal] = useState(false);
+  const [showLabelModal, setShowLabelModal] = useState(false);
   
   // Datos del turno actual
   const [turno, setTurno] = useState<'Mañana' | 'Tarde'>(() => {
@@ -210,6 +213,15 @@ export function APPCCDashboard() {
               🌙 Tarde {tardeRegistrada ? '✓' : '...'}
             </span>
           </div>
+
+          <button
+            onClick={() => setShowLabelModal(true)}
+            className="min-h-[44px] px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-stone-950 font-black text-xs uppercase tracking-wider flex items-center gap-2 shadow-md cursor-pointer transition-all active:scale-95"
+            title="Generador de Etiquetas de Caducidad y Marcado Secundario"
+          >
+            <Tag className="w-4 h-4 stroke-[2.5]" />
+            <span>Etiquetas Caducidad</span>
+          </button>
 
           <button
             onClick={() => setShowReportModal(true)}
@@ -553,6 +565,12 @@ export function APPCCDashboard() {
       <APPCCReportModal
         isOpen={showReportModal}
         onClose={() => setShowReportModal(false)}
+      />
+
+      {/* MODAL ROTULADO SECUNDARIO / ETIQUETAS DE CADUCIDAD APPCC */}
+      <PrepLabelModal
+        isOpen={showLabelModal}
+        onClose={() => setShowLabelModal(false)}
       />
 
     </div>

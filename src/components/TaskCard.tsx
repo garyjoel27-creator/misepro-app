@@ -1,10 +1,11 @@
 import { useState } from 'react';
 import { Draggable } from '@hello-pangea/dnd';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Check, Flame, Pencil, Trash2, Star } from 'lucide-react';
+import { Check, Flame, Pencil, Trash2, Star, Tag } from 'lucide-react';
 import { useBrigadeStore } from '../store/useBrigadeStore';
 import type { Tarea } from '../store/useBrigadeStore';
 import { ShoppingModal } from './ShoppingModal';
+import { PrepLabelModal } from './PrepLabelModal';
 import { useTheme } from '../hooks/useTheme';
 
 export interface TaskCardProps {
@@ -62,6 +63,7 @@ export function TaskCard({ tarea, index, isMobile = false }: TaskCardProps) {
   const { isDark } = useTheme();
 
   const [isEditing, setIsEditing] = useState(false);
+  const [showLabelModal, setShowLabelModal] = useState(false);
   const [editNombre, setEditNombre] = useState(tarea.nombre);
   const [editCantidad, setEditCantidad] = useState(tarea.cantidad || 1);
   const [isFlashing, setIsFlashing] = useState(false);
@@ -230,6 +232,16 @@ export function TaskCard({ tarea, index, isMobile = false }: TaskCardProps) {
 
         <button
           type="button"
+          onClick={() => setShowLabelModal(true)}
+          className="w-11 h-11 min-w-[44px] min-h-[44px] rounded-xl flex items-center justify-center text-stone-400 hover:text-amber-500 dark:text-slate-500 dark:hover:text-amber-400 hover:bg-stone-100 dark:hover:bg-slate-800 transition-colors cursor-pointer active:scale-95 touch-manipulation"
+          title="Generar Etiqueta APPCC"
+          aria-label="Generar Etiqueta APPCC"
+        >
+          <Tag className="w-4 h-4" />
+        </button>
+
+        <button
+          type="button"
           onClick={() => setIsEditing(true)}
           className="w-11 h-11 min-w-[44px] min-h-[44px] rounded-xl flex items-center justify-center text-stone-400 hover:text-stone-700 dark:text-slate-500 dark:hover:text-slate-200 hover:bg-stone-100 dark:hover:bg-slate-800 transition-colors cursor-pointer active:scale-95 touch-manipulation"
           title="Editar elaboración"
@@ -238,6 +250,18 @@ export function TaskCard({ tarea, index, isMobile = false }: TaskCardProps) {
           <Pencil className="w-4 h-4" />
         </button>
       </div>
+
+      {showLabelModal && (
+        <PrepLabelModal
+          isOpen={showLabelModal}
+          onClose={() => setShowLabelModal(false)}
+          initialData={{
+            producto: tarea.nombre,
+            partida: tarea.partida,
+            responsable: ''
+          }}
+        />
+      )}
     </div>
   );
 

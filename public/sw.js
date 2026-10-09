@@ -1,6 +1,6 @@
 // MisePro Service Worker - Production Offline-First Engine
-// Version: 3.0.0-handsfree-offline-shift
-const CACHE_NAME = 'misepro-cache-v3.0.0';
+// Version: 3.1.0-prep-waste-sop
+const CACHE_NAME = 'misepro-cache-v3.1.0';
 
 const PRECACHE_ASSETS = [
   '/',

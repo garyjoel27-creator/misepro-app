@@ -95,6 +95,46 @@ export interface DatosEstablecimientoAPPCC {
   responsable: string;
 }
 
+export interface EtiquetaCaducidad {
+  id: string;
+  nombre: string;
+  partida: string;
+  cantidad?: number;
+  unidad?: string;
+  fechaElaboracion: string; // ISO o fecha legible
+  fechaCaducidad: string;   // YYYY-MM-DD
+  horaCaducidad?: string;   // HH:mm
+  tipoConservacion: 'Refrigerado (<3ºC)' | 'Congelado (<-18ºC)' | 'Seco/Ambiente';
+  alergenos?: string[];
+  responsable: string;
+  lote?: string;
+  timestamp: number;
+}
+
+export interface RegistroMerma {
+  id: string;
+  nombre: string;
+  partida: string;
+  cantidad: number;
+  unidad: string;
+  motivo: 'Coccion' | 'Caducidad' | 'Caida/Rotura' | 'Manipulacion' | 'Devolucion' | 'Otro';
+  costeEstimado?: number;
+  hora: string;
+  fecha: string;
+  timestamp: number;
+  responsable?: string;
+}
+
+export interface ItemSOP {
+  id: string;
+  texto: string;
+  momento: 'apertura' | 'cierre';
+  partida?: string;
+  completado: boolean;
+  completadoPor?: string;
+  timestamp?: number;
+}
+
 export interface BrigadeState {
   turnoActual: TurnoData;
   nombreRestaurante: string;
@@ -171,6 +211,24 @@ export interface BrigadeState {
   actualizarPuntosControlAPPCC: (puntos: PuntoControlAPPCC[]) => void;
   actualizarDatosEstablecimientoAPPCC: (datos: Partial<DatosEstablecimientoAPPCC>) => void;
   eliminarRegistroAPPCC: (id: string) => void;
+
+  // 🏷️ Funcionalidad 2: Etiquetas de Marcado Secundario
+  etiquetasCaducidad: EtiquetaCaducidad[];
+  guardarEtiquetaCaducidad: (etiqueta: Omit<EtiquetaCaducidad, 'id' | 'timestamp'>) => EtiquetaCaducidad;
+  eliminarEtiquetaCaducidad: (id: string) => void;
+
+  // 🗑️ Funcionalidad 3: Control de Mermas y Desperdicio
+  registrosMermas: RegistroMerma[];
+  registrarMerma: (merma: Omit<RegistroMerma, 'id' | 'timestamp' | 'hora' | 'fecha'>) => void;
+  eliminarMerma: (id: string) => void;
+  vaciarMermas: () => void;
+
+  // ✅ Funcionalidad 5: Checklists de Apertura y Cierre (SOPs)
+  itemsSOP: ItemSOP[];
+  toggleItemSOP: (id: string, responsable?: string) => void;
+  reiniciarChecklistSOP: (momento: 'apertura' | 'cierre') => void;
+  agregarItemSOP: (texto: string, momento: 'apertura' | 'cierre', partida?: string) => void;
+  eliminarItemSOP: (id: string) => void;
 }
 
 export const PUNTOS_CONTROL_APPCC_DEFECTO: PuntoControlAPPCC[] = [
@@ -207,6 +265,22 @@ export const PROCESOS_HABITUALES_INICIALES: ProcesoHabitual[] = [
   { id: 'proc-p2', nombre: 'Desespinado Fino y Raciones Salmón', partida: 'Pescados', cantidadSugerida: 5, unidad: 'Kg', prioridad: 'Critica' },
   { id: 'proc-p3', nombre: 'Limpieza Calamar de Potera', partida: 'Pescados', cantidadSugerida: 3, unidad: 'Kg', prioridad: 'Media' },
   { id: 'proc-p4', nombre: 'Fumet Blanco de Roca y Mariscos', partida: 'Pescados', cantidadSugerida: 8, unidad: 'Litros', prioridad: 'Critica' },
+];
+
+export const ITEMS_SOP_DEFECTO: ItemSOP[] = [
+  // Apertura
+  { id: 'sop-a1', texto: 'Comprobar temperaturas de cámaras frigoríficas (< 4ºC)', momento: 'apertura', completado: false },
+  { id: 'sop-a2', texto: 'Encender hornos, planchas y baños maría con antelación', momento: 'apertura', completado: false },
+  { id: 'sop-a3', texto: 'Revisar stock y mise en place crítica para el servicio', momento: 'apertura', completado: false },
+  { id: 'sop-a4', texto: 'Desinfectar tablas de corte, cuchillos y bayetas con sanitizante', momento: 'apertura', completado: false },
+  { id: 'sop-a5', texto: 'Verificar funcionamiento de campanas extractoras y salida de humos', momento: 'apertura', completado: false },
+
+  // Cierre
+  { id: 'sop-c1', texto: 'Apagar fuegos, hornos, freidoras y planchas', momento: 'cierre', completado: false },
+  { id: 'sop-c2', texto: 'Cerrar llaves generales de paso de gas', momento: 'cierre', completado: false },
+  { id: 'sop-c3', texto: 'Rotular con etiqueta de caducidad y tapar elaboraciones en cámara', momento: 'cierre', completado: false },
+  { id: 'sop-c4', texto: 'Limpiar filtros de campana y desinfectar superficies de acero', momento: 'cierre', completado: false },
+  { id: 'sop-c5', texto: 'Vaciado, desinfección de cubos de basura y suelos limpios', momento: 'cierre', completado: false },
 ];
 
 const getInitialOnboardingState = (): boolean => {
@@ -337,6 +411,15 @@ export const useBrigadeStore = create<BrigadeState>((setStore, getStore) => ({
     cif: 'B-12345678',
     responsable: 'Jefe de Cocina'
   },
+
+  // 🏷️ Funcionalidad 2: Etiquetas de Marcado Secundario
+  etiquetasCaducidad: [],
+
+  // 🗑️ Funcionalidad 3: Control de Mermas y Desperdicio
+  registrosMermas: [],
+
+  // ✅ Funcionalidad 5: Checklists de Apertura y Cierre (SOPs)
+  itemsSOP: ITEMS_SOP_DEFECTO,
 
   toggleModoServicio: () => {
     setStore((state) => {
@@ -822,7 +905,10 @@ export const useBrigadeStore = create<BrigadeState>((setStore, getStore) => ({
            procesosHabituales: data.procesosHabituales?.length > 0 ? data.procesosHabituales : getStore().procesosHabituales,
            puntosControlAPPCC: data.puntosControlAPPCC?.length > 0 ? data.puntosControlAPPCC : PUNTOS_CONTROL_APPCC_DEFECTO,
            registrosAPPCC: Array.isArray(data.registrosAPPCC) ? data.registrosAPPCC : [],
-           datosEstablecimientoAPPCC: data.datosEstablecimientoAPPCC ?? getStore().datosEstablecimientoAPPCC
+           datosEstablecimientoAPPCC: data.datosEstablecimientoAPPCC ?? getStore().datosEstablecimientoAPPCC,
+           etiquetasCaducidad: Array.isArray(data.etiquetasCaducidad) ? data.etiquetasCaducidad : [],
+           registrosMermas: Array.isArray(data.registrosMermas) ? data.registrosMermas : [],
+           itemsSOP: Array.isArray(data.itemsSOP) && data.itemsSOP.length > 0 ? data.itemsSOP : ITEMS_SOP_DEFECTO
         };
         syncCoreToLocalStorage({
           hasConfiguredOnboarding: hasOnboarding,
@@ -1044,6 +1130,118 @@ export const useBrigadeStore = create<BrigadeState>((setStore, getStore) => ({
       const newState = {
         registrosAPPCC: state.registrosAPPCC.filter(r => r.id !== id)
       };
+      set('brigade-sync-store', { ...state, ...newState });
+      return newState;
+    });
+  },
+
+  // 🏷️ Funcionalidad 2: Etiquetas de Marcado Secundario
+  guardarEtiquetaCaducidad: (etiqueta) => {
+    const nueva: EtiquetaCaducidad = {
+      ...etiqueta,
+      id: crypto.randomUUID(),
+      timestamp: Date.now()
+    };
+    setStore((state) => {
+      const newState = { etiquetasCaducidad: [nueva, ...state.etiquetasCaducidad] };
+      set('brigade-sync-store', { ...state, ...newState });
+      return newState;
+    });
+    return nueva;
+  },
+
+  eliminarEtiquetaCaducidad: (id) => {
+    setStore((state) => {
+      const newState = { etiquetasCaducidad: state.etiquetasCaducidad.filter(e => e.id !== id) };
+      set('brigade-sync-store', { ...state, ...newState });
+      return newState;
+    });
+  },
+
+  // 🗑️ Funcionalidad 3: Control de Mermas y Desperdicio
+  registrarMerma: (merma) => {
+    const now = new Date();
+    const nueva: RegistroMerma = {
+      ...merma,
+      id: crypto.randomUUID(),
+      hora: now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      fecha: now.toISOString().split('T')[0],
+      timestamp: Date.now()
+    };
+    setStore((state) => {
+      const newState = { registrosMermas: [nueva, ...state.registrosMermas] };
+      set('brigade-sync-store', { ...state, ...newState });
+      return newState;
+    });
+  },
+
+  eliminarMerma: (id) => {
+    setStore((state) => {
+      const newState = { registrosMermas: state.registrosMermas.filter(m => m.id !== id) };
+      set('brigade-sync-store', { ...state, ...newState });
+      return newState;
+    });
+  },
+
+  vaciarMermas: () => {
+    setStore((state) => {
+      const newState = { registrosMermas: [] };
+      set('brigade-sync-store', { ...state, ...newState });
+      return newState;
+    });
+  },
+
+  // ✅ Funcionalidad 5: Checklists de Apertura y Cierre (SOPs)
+  toggleItemSOP: (id, responsable) => {
+    setStore((state) => {
+      const newState = {
+        itemsSOP: state.itemsSOP.map(item => {
+          if (item.id !== id) return item;
+          const nextComp = !item.completado;
+          return {
+            ...item,
+            completado: nextComp,
+            completadoPor: nextComp ? (responsable || 'Cocinero') : undefined,
+            timestamp: nextComp ? Date.now() : undefined
+          };
+        })
+      };
+      set('brigade-sync-store', { ...state, ...newState });
+      return newState;
+    });
+  },
+
+  reiniciarChecklistSOP: (momento) => {
+    setStore((state) => {
+      const newState = {
+        itemsSOP: state.itemsSOP.map(item => {
+          if (item.momento !== momento) return item;
+          return { ...item, completado: false, completadoPor: undefined, timestamp: undefined };
+        })
+      };
+      set('brigade-sync-store', { ...state, ...newState });
+      return newState;
+    });
+  },
+
+  agregarItemSOP: (texto, momento, partida) => {
+    const nuevo: ItemSOP = {
+      id: crypto.randomUUID(),
+      texto: texto.trim(),
+      momento,
+      partida: partida?.trim() || undefined,
+      completado: false
+    };
+    setStore((state) => {
+      const newState = { itemsSOP: [...state.itemsSOP, nuevo] };
+      set('brigade-sync-store', { ...state, ...newState });
+      return newState;
+    });
+  },
+
+  eliminarItemSOP: (id) => {
+    setStore((state) => {
+      const newState = { itemsSOP: state.itemsSOP.filter(item => item.id !== id) };
       set('brigade-sync-store', { ...state, ...newState });
       return newState;
     });

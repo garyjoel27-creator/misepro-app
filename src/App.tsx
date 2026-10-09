@@ -24,7 +24,9 @@ import {
   Share2,
   Check,
   CheckCircle2,
-  ClipboardCheck
+  ClipboardCheck,
+  Tag,
+  ListChecks
 } from 'lucide-react';
 import { KanbanBoard } from './components/KanbanBoard';
 import { LogisticsDrawer } from './components/LogisticsDrawer';
@@ -35,6 +37,9 @@ import { ServiceDashboard } from './components/ServiceDashboard';
 import { APPCCDashboard } from './components/APPCCDashboard';
 import { VoiceAssistantModal } from './components/VoiceAssistantModal';
 import { ShiftHandoverModal } from './components/ShiftHandoverModal';
+import { PrepLabelModal } from './components/PrepLabelModal';
+import { FoodWasteModal } from './components/FoodWasteModal';
+import { StationSOPModal } from './components/StationSOPModal';
 import { audioService } from './utils/audioSingleton';
 import { OnboardingWizardModal } from './components/OnboardingWizardModal';
 import { StationManagerModal } from './components/StationManagerModal';
@@ -308,6 +313,7 @@ export default function App() {
     marcarAgotado86,
     quitarAgotado86,
     vaciarAgotados86,
+    registrosMermas = [],
     isChefMode,
     toggleChefMode,
     pinJefe,
@@ -320,6 +326,12 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<'prep' | 'pase' | 'appcc' | 'logistica' | 'ajustes'>('prep');
   
   const [drawerOpen, setDrawerOpen] = useState(false);
+
+  // Modales de Operativa Avanzada de Cocina (Rotulado, Mermas, SOPs)
+  const [showPrepLabelModal, setShowPrepLabelModal] = useState(false);
+  const [prepLabelInitialData, setPrepLabelInitialData] = useState<{ producto?: string; partida?: string; responsable?: string } | undefined>(undefined);
+  const [showFoodWasteModal, setShowFoodWasteModal] = useState(false);
+  const [showStationSOPModal, setShowStationSOPModal] = useState(false);
   
   // Voice Assistant Modal State
   const [showVoiceModal, setShowVoiceModal] = useState(false);
@@ -515,6 +527,39 @@ export default function App() {
               {wakeWordEnabled && isAmbientListening && (
                 <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping inline-block" />
               )}
+            </button>
+
+            {/* Quick Station SOP Checklist Button */}
+            <button
+              onClick={() => setShowStationSOPModal(true)}
+              className="min-h-[40px] px-2.5 sm:px-3 rounded-xl border border-stone-300/80 dark:border-slate-800 bg-stone-100/70 dark:bg-[#131926] hover:border-amber-500/50 hover:text-amber-400 text-stone-700 dark:text-slate-300 flex items-center gap-1.5 text-xs font-bold transition-all cursor-pointer shadow-xs active:scale-95"
+              title="Checklists de Apertura y Cierre de Partida"
+            >
+              <ListChecks className="w-4 h-4 text-blue-400" />
+              <span className="hidden lg:inline font-mono">SOP</span>
+            </button>
+
+            {/* Quick Food Waste Tracker Button */}
+            <button
+              onClick={() => setShowFoodWasteModal(true)}
+              className="min-h-[40px] px-2.5 sm:px-3 rounded-xl border border-stone-300/80 dark:border-slate-800 bg-stone-100/70 dark:bg-[#131926] hover:border-red-500/50 hover:text-red-400 text-stone-700 dark:text-slate-300 flex items-center gap-1.5 text-xs font-bold transition-all cursor-pointer shadow-xs active:scale-95"
+              title="Control y Registro Exprés de Mermas"
+            >
+              <Trash2 className="w-4 h-4 text-rose-400" />
+              <span className="hidden lg:inline font-mono">Mermas</span>
+            </button>
+
+            {/* Quick Prep Label Generator Button */}
+            <button
+              onClick={() => {
+                setPrepLabelInitialData(undefined);
+                setShowPrepLabelModal(true);
+              }}
+              className="min-h-[40px] px-2.5 sm:px-3 rounded-xl border border-stone-300/80 dark:border-slate-800 bg-stone-100/70 dark:bg-[#131926] hover:border-amber-500/50 hover:text-amber-400 text-stone-700 dark:text-slate-300 flex items-center gap-1.5 text-xs font-bold transition-all cursor-pointer shadow-xs active:scale-95"
+              title="Generador de Etiquetas de Caducidad APPCC"
+            >
+              <Tag className="w-4 h-4 text-amber-400" />
+              <span className="hidden xl:inline font-mono">Etiquetas</span>
             </button>
 
             {/* Quick Shift Handover Button */}
@@ -1019,6 +1064,84 @@ export default function App() {
                 </div>
               )}
             </div>
+
+            {/* SECCIÓN REGISTRO DE MERMAS Y DESPERDICIO (FOOD WASTE TRACKER) */}
+            <div className={`p-6 rounded-3xl border flex flex-col gap-4 shadow-sm ${
+              isDark ? 'bg-[#0f172a] border-slate-800' : 'bg-white border-stone-300'
+            }`}>
+              <div className="flex items-center justify-between pb-3 border-b border-stone-200 dark:border-slate-800 flex-wrap gap-2">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-2xl bg-rose-500/10 text-rose-500 flex items-center justify-center font-black shrink-0 border border-rose-500/20">
+                    <Trash2 className="w-5 h-5 stroke-[2.2]" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-serif font-bold text-stone-900 dark:text-white flex items-center gap-2">
+                      Control de Mermas y Desperdicio
+                    </h3>
+                    <p className="text-xs text-stone-500 dark:text-slate-400 font-medium">
+                      Registro exprés para cálculo de Food Cost e informe de pase de turno.
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  onClick={() => setShowFoodWasteModal(true)}
+                  className="min-h-[38px] px-4 rounded-xl bg-rose-500 hover:bg-rose-400 text-stone-950 font-black text-xs uppercase tracking-wider cursor-pointer transition-transform active:scale-95 shadow-sm flex items-center gap-1.5"
+                >
+                  <Plus className="w-4 h-4 stroke-[3]" />
+                  <span>Registrar Merma</span>
+                </button>
+              </div>
+
+              {registrosMermas.length === 0 ? (
+                <div className={`p-8 rounded-2xl border text-center flex flex-col items-center justify-center gap-2 ${
+                  isDark ? 'bg-[#1e293b]/50 border-slate-800' : 'bg-[#f8fafc] border-stone-200'
+                }`}>
+                  <Trash2 className="w-10 h-10 text-stone-400 opacity-60" />
+                  <p className="text-sm font-bold text-stone-600 dark:text-slate-300">
+                    Cero mermas registradas en este turno.
+                  </p>
+                  <p className="text-xs text-stone-500 dark:text-slate-400">
+                    Registra cualquier caída, error de cocción o caducidad en 10 segundos.
+                  </p>
+                </div>
+              ) : (
+                <div className="flex flex-col gap-3">
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                    <div className="p-3 rounded-xl bg-stone-100 dark:bg-slate-900 border border-stone-200 dark:border-slate-800">
+                      <span className="text-[10px] font-bold uppercase text-stone-400">Total Registros</span>
+                      <p className="text-xl font-black font-mono mt-0.5">{registrosMermas.length}</p>
+                    </div>
+                    <div className="p-3 rounded-xl bg-stone-100 dark:bg-slate-900 border border-stone-200 dark:border-slate-800">
+                      <span className="text-[10px] font-bold uppercase text-rose-500">Coste Estimado</span>
+                      <p className="text-xl font-black font-mono text-rose-500 mt-0.5">
+                        ~{registrosMermas.reduce((a, b) => a + (b.costeEstimado || 0), 0).toFixed(2)}€
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5">
+                    {registrosMermas.slice(-6).reverse().map(m => (
+                      <div key={m.id} className={`p-3.5 rounded-2xl border flex items-center justify-between gap-2 ${
+                        isDark ? 'bg-[#1e293b] border-slate-700' : 'bg-[#f8fafc] border-stone-300'
+                      }`}>
+                        <div className="min-w-0">
+                          <p className="font-bold text-sm text-stone-900 dark:text-slate-100 truncate">{m.nombre}</p>
+                          <p className="text-xs text-stone-500 dark:text-slate-400 truncate">
+                            {m.cantidad} {m.unidad} • {m.partida} • {m.motivo}
+                          </p>
+                        </div>
+                        {m.costeEstimado && (
+                          <span className="text-xs font-mono font-black text-rose-500 shrink-0">
+                            ~{m.costeEstimado.toFixed(2)}€
+                          </span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         )}
 
@@ -1307,6 +1430,28 @@ export default function App() {
       <ShiftHandoverModal
         isOpen={showHandoverModal}
         onClose={() => setShowHandoverModal(false)}
+      />
+
+      {/* Modal Rotulado Secundario / Etiquetas de Caducidad APPCC */}
+      <PrepLabelModal
+        isOpen={showPrepLabelModal}
+        onClose={() => {
+          setShowPrepLabelModal(false);
+          setPrepLabelInitialData(undefined);
+        }}
+        initialData={prepLabelInitialData}
+      />
+
+      {/* Modal Registro Exprés de Mermas y Desperdicio */}
+      <FoodWasteModal
+        isOpen={showFoodWasteModal}
+        onClose={() => setShowFoodWasteModal(false)}
+      />
+
+      {/* Modal Checklists Rápidos de Apertura y Cierre de Partida (SOPs) */}
+      <StationSOPModal
+        isOpen={showStationSOPModal}
+        onClose={() => setShowStationSOPModal(false)}
       />
     </div>
   );
